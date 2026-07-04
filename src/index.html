@@ -159,6 +159,23 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .fstat.g{border-color:var(--green)} .fstat.g .h{background:var(--green)} .fstat.g .v{color:var(--green-dk)}
 .fstat.o{border-color:#ff9600} .fstat.o .h{background:#ff9600} .fstat.o .v{color:#ff9600}
 
+/* ---- маскот: суур (гималайский сурок) ---- */
+.marmot{display:inline-block; animation:mbob 2.8s ease-in-out infinite}
+.marmot svg *{transform-box:fill-box}
+@keyframes mbob{50%{transform:translateY(-4px)}}
+.marmot .eye{transform-origin:center; animation:mblink 4.6s infinite}
+@keyframes mblink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.06)}}
+.marmot.wave .arm-r{transform-origin:15% 25%; animation:mwave 1.7s ease-in-out infinite}
+@keyframes mwave{0%,100%{transform:rotate(0)}35%{transform:rotate(-46deg)}65%{transform:rotate(-18deg)}}
+.marmot.cheer{animation:mjump .8s cubic-bezier(.3,1.6,.5,1) infinite alternate}
+@keyframes mjump{from{transform:translateY(0)}to{transform:translateY(-14px)}}
+.marmot.cheer .arm-l{transform-origin:85% 25%; animation:mup-l .8s ease-in-out infinite alternate}
+.marmot.cheer .arm-r{transform-origin:15% 25%; animation:mup-r .8s ease-in-out infinite alternate}
+@keyframes mup-l{from{transform:rotate(10deg)}to{transform:rotate(58deg)}}
+@keyframes mup-r{from{transform:rotate(-10deg)}to{transform:rotate(-58deg)}}
+.marmot .head{transform-origin:50% 80%; animation:mtilt 5.4s ease-in-out infinite}
+@keyframes mtilt{0%,100%{transform:rotate(0)}30%{transform:rotate(-3deg)}70%{transform:rotate(3deg)}}
+
 #toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
   background:#3c3c3c; color:#fff; padding:11px 20px; border-radius:999px; font-size:14px;
   font-weight:600; opacity:0; transition:opacity .3s; pointer-events:none; z-index:50}
@@ -170,7 +187,7 @@ select{font:inherit; border:2px solid var(--line); border-radius:8px; padding:2p
 </style>
 </head>
 <body>
-<div id="app"><div class="center" style="padding-top:30vh"><div style="font-size:56px">🇰🇬</div>Жүктөлүүдө…</div></div>
+<div id="app"><div class="center" style="padding-top:28vh"><div style="font-size:56px">🐾</div>Жүктөлүүдө…</div></div>
 <div id="toast"></div>
 <canvas id="confetti"></canvas>
 
@@ -309,13 +326,45 @@ function index(){
   for(const w of S.wordbank.words) S.byRank[w.freq_rank]=w;
 }
 
+/* ---------- Маскот: суур ---------- */
+function marmot(size,cls=''){
+  return `<span class="marmot ${cls}" style="width:${size}px;height:${Math.round(size*1.12)}px">
+  <svg viewBox="0 0 120 134" width="${size}" height="${Math.round(size*1.12)}" aria-label="суур">
+    <ellipse cx="96" cy="108" rx="14" ry="8" fill="#8a6a42" transform="rotate(-30 96 108)"/>
+    <ellipse cx="60" cy="94" rx="37" ry="38" fill="#c9a15e"/>
+    <ellipse cx="60" cy="100" rx="25" ry="29" fill="#ecd3a1"/>
+    <g class="arm-l"><ellipse cx="89" cy="88" rx="9" ry="17" fill="#b58c4e" transform="rotate(-22 89 88)"/>
+      <ellipse cx="94" cy="101" rx="6" ry="5" fill="#8a6a42"/></g>
+    <g class="arm-r"><ellipse cx="31" cy="88" rx="9" ry="17" fill="#b58c4e" transform="rotate(22 31 88)"/>
+      <ellipse cx="26" cy="101" rx="6" ry="5" fill="#8a6a42"/></g>
+    <ellipse cx="42" cy="128" rx="11" ry="6" fill="#8a6a42"/>
+    <ellipse cx="78" cy="128" rx="11" ry="6" fill="#8a6a42"/>
+    <g class="head">
+      <circle cx="26" cy="26" r="9" fill="#8a6a42"/><circle cx="26" cy="26" r="5" fill="#6b4f2f"/>
+      <circle cx="94" cy="26" r="9" fill="#8a6a42"/><circle cx="94" cy="26" r="5" fill="#6b4f2f"/>
+      <circle cx="60" cy="42" r="30" fill="#c9a15e"/>
+      <path d="M32 34 Q60 12 88 34 Q74 24 60 24 Q46 24 32 34Z" fill="#7a5a38"/>
+      <ellipse cx="60" cy="56" rx="15" ry="11" fill="#ecd3a1"/>
+      <ellipse cx="60" cy="49" rx="5.5" ry="4" fill="#4a3423"/>
+      <rect x="55" y="55" width="4.6" height="8" rx="1.5" fill="#fff"/>
+      <rect x="60.4" y="55" width="4.6" height="8" rx="1.5" fill="#fff"/>
+      <circle cx="42" cy="52" r="5" fill="#d98a6a" opacity=".3"/>
+      <circle cx="78" cy="52" r="5" fill="#d98a6a" opacity=".3"/>
+      <g class="eye"><circle cx="47" cy="40" r="4.6" fill="#2e2018"/>
+        <circle cx="48.6" cy="38.4" r="1.5" fill="#fff"/></g>
+      <g class="eye"><circle cx="73" cy="40" r="4.6" fill="#2e2018"/>
+        <circle cx="74.6" cy="38.4" r="1.5" fill="#fff"/></g>
+    </g>
+  </svg></span>`;
+}
+
 /* ---------- Экраны ---------- */
 function render(fn,...a){window.scrollTo(0,0); fn(...a);}
 
 function loginScreen(){
-  app.innerHTML=`<div class="center" style="padding-top:16vh">
-    <div style="font-size:64px">🇰🇬</div><h1>Кыргызча</h1>
-    <p class="muted">Личное приложение Ивана<br>для изучения кыргызского языка</p>
+  app.innerHTML=`<div class="center" style="padding-top:12vh">
+    ${marmot(150,'wave')}<h1>Кыргызча</h1>
+    <p class="muted">Салам! Я Суур, гималайский сурок.<br>Научу тебя кыргызскому 🇰🇬</p>
     <div style="height:20px"></div>
     <button class="btn blue" id="login">Войти через Google</button></div>`;
   $('#login').onclick=async()=>{
@@ -355,8 +404,11 @@ function home(){
     <span class="stat xp-c"><span class="ic">⚡</span>${S.xp}</span>
     <span class="stat">${goalRing()}<span class="small muted">${S.doneToday}/${S.goal}</span></span>
   </div>
-  <h1>Кыргызча</h1>
-  <div class="lvl">${esc(lv.name)}${lv.next?` · до «${esc(lv.next[1])}» ${lv.next[0]-S.xp} XP`:''}</div>`;
+  <div style="display:flex; align-items:center; gap:12px">
+    ${marmot(56)}
+    <div><h1 style="margin:0">Кыргызча</h1>
+    <div class="lvl">${esc(lv.name)}${lv.next?` · до «${esc(lv.next[1])}» ${lv.next[0]-S.xp} XP`:''}</div></div>
+  </div>`;
   if(nxt) html+=`<div class="continue"><button class="btn" id="cont">Продолжить · ${esc(nxt.u.title)}</button></div>`;
   if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due} слов</button>`;
 
@@ -458,8 +510,8 @@ async function finishSession(results,baseXP){
   confetti();
   const goalHit=S.doneToday===S.goal;
   app.innerHTML=`<div class="finish">
-    <div class="emoji">${perfect?'🏆':'🎉'}</div>
-    <h1>${perfect?'Идеально!':'Урок пройден!'}</h1>
+    <div style="height:14px"></div>${marmot(130,'cheer')}
+    <h1>${perfect?'Идеально! 🏆':'Урок пройден!'}</h1>
     ${newDay?`<p class="muted">🔥 Стрик продолжается: <b>${S.streak.count}</b> ${dayWord(S.streak.count)}!</p>`:''}
     ${goalHit?`<p class="muted">🎯 Цель дня выполнена!</p>`:''}
     <div class="fstats">
@@ -573,89 +625,4 @@ function runSession(tasks,onDone){
       const field=t.type==='ky2ru'?'tr':'word';
       const opts=shuffle([ans,...distractors(w,3,field==='word'?'word':'tr')]);
       ex.innerHTML=`<p class="prompt">${t.type==='ky2ru'?'Выбери перевод':'Выбери кыргызское слово'}</p>
-        <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${esc(q)}</div>
-        ${opts.map(o=>`<button class="opt">${esc(o)}</button>`).join('')}`;
-      document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
-        const ok=b.textContent===ans;
-        b.classList.add(ok?'ok':'bad');
-        if(!ok){b.classList.add('shake');
-          document.querySelectorAll('.opt').forEach(x=>{
-            if(x.textContent===ans)x.classList.add('ok');});}
-        document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
-        finishTask(ok, ok?null:`${esc(w.word)} — ${esc(shortTr(w))}`);});
-      return;
-    }
-
-    /* -- набор текста -- */
-    if(t.type==='type'){
-      ex.innerHTML=`<p class="prompt">Напиши по-кыргызски</p>
-        <div class="ruword">${esc(shortTr(w))}</div>
-        <input type="text" id="inp" autocomplete="off" autocapitalize="off" lang="ky">
-        <div class="kyletters">${['ө','ү','ң'].map(c=>
-          `<button data-c="${c}">${c}</button>`).join('')}</div>
-        <button class="btn" id="check">Проверить</button>`;
-      const inp=$('#inp'); inp.focus();
-      document.querySelectorAll('.kyletters button').forEach(b=>b.onclick=()=>{
-        const s=inp.selectionStart||inp.value.length;
-        inp.value=inp.value.slice(0,s)+b.dataset.c+inp.value.slice(s);
-        inp.focus(); inp.selectionStart=inp.selectionEnd=s+1;});
-      const check=()=>{
-        if(!inp.value.trim())return;
-        const norm=s=>s.toLowerCase().replace(/ё/g,'е').trim().replace(/\s+/g,' ');
-        const ok=norm(inp.value)===norm(w.word);
-        $('#check').disabled=true; inp.disabled=true;
-        finishTask(ok, ok?null:`Правильно: <b>${esc(w.word)}</b>`);};
-      $('#check').onclick=check;
-      inp.onkeydown=e=>{if(e.key==='Enter'&&!$('#check').disabled)check();};
-      return;
-    }
-  }
-  next();
-}
-function findTopic(r){
-  for(const u of S.course.units)
-    for(const w of u.words)
-      if(w.freq_rank===r)return w.topic;
-  return '';}
-
-/* ---------- Конфетти ---------- */
-function confetti(){
-  const cv=$('#confetti'), ctx=cv.getContext('2d');
-  cv.width=innerWidth; cv.height=innerHeight;
-  const cols=['#58cc02','#1cb0f6','#ffc400','#ff4b4b','#ce82ff'];
-  const ps=Array.from({length:80},()=>({
-    x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.5,
-    vx:(Math.random()-0.5)*3, vy:2+Math.random()*4,
-    s:5+Math.random()*6, c:cols[Math.floor(Math.random()*cols.length)],
-    a:Math.random()*Math.PI, va:(Math.random()-0.5)*0.3}));
-  let frames=0;
-  (function tick(){
-    ctx.clearRect(0,0,cv.width,cv.height);
-    for(const p of ps){
-      p.x+=p.vx; p.y+=p.vy; p.a+=p.va;
-      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a);
-      ctx.fillStyle=p.c; ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s); ctx.restore();
-    }
-    if(++frames<130)requestAnimationFrame(tick);
-    else ctx.clearRect(0,0,cv.width,cv.height);
-  })();
-}
-
-/* ---------- Запуск ---------- */
-(async function(){
-  idb=await idbOpen();
-  await loadMeta();
-  firebase.auth().onAuthStateChanged(async u=>{
-    if(!u){render(loginScreen);return;}
-    S.user=u;
-    app.innerHTML=`<div class="center" style="padding-top:30vh">Загружаю курс…</div>`;
-    S.srs=await srsAll();
-    await loadContent();
-  });
-  if('serviceWorker'in navigator)
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-})();
-/* build: v0.2-ui 2026-07-04 */
-</script>
-</body>
-</html>
+        <div class="${t.type==='ky2ru'?'kyword':'ruwor
