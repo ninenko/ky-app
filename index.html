@@ -114,7 +114,8 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 /* ---- главный экран ---- */
 .statbar{display:flex; justify-content:space-between; align-items:center;
   padding:14px 0 4px; position:sticky; top:0; background:var(--bg); z-index:5}
-.stat{display:flex; align-items:center; gap:5px; font-weight:800; font-size:16px}
+.stat{display:flex; align-items:center; gap:5px; font:inherit; font-weight:800; font-size:16px;
+  background:none; border:0; padding:2px; cursor:pointer; color:var(--text)}
 .stat .ic{font-size:20px}
 .streak-c{color:#ff9600} .xp-c{color:var(--yellow-dk)} .frz-c{color:var(--blue)}
 .goalring{width:26px; height:26px; transform:rotate(-90deg)}
@@ -122,11 +123,36 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .goalring .bgc{stroke:var(--line)}
 .goalring .fgc{stroke:var(--green); stroke-linecap:round; transition:stroke-dashoffset .5s}
 
+/* ---- всплывающая подсказка к статам ---- */
+.tipbox{background:#3c3c3c; color:#fff; font-size:14px; line-height:1.5; border-radius:14px;
+  padding:12px 14px; margin:6px 0 2px; animation:pop .2s; cursor:pointer}
+
 .continue{margin:14px 0}
 .lvl{font-size:13px; font-weight:700; color:var(--muted)}
 
+/* ---- навигация: части → этапы → юниты ---- */
+.acc{display:flex; align-items:center; gap:12px; width:100%; text-align:left; font:inherit;
+  color:var(--text); background:#fff; border:2px solid var(--line); border-bottom-width:4px;
+  border-radius:var(--r); cursor:pointer; padding:12px 14px; margin:12px 0 0}
+.acc:active{border-bottom-width:2px; transform:translateY(2px)}
+.acc .grow{flex:1; min-width:0}
+.acc .ttl{font-weight:800; font-size:16px}
+.acc .sub{font-size:12px; color:var(--muted); margin-top:2px}
+.acc .chev{color:var(--muted); font-size:14px; transition:transform .2s}
+.acc.open .chev{transform:rotate(180deg)}
+.acc.part.open{border-color:var(--blue)}
+.acc.stage{margin-left:14px; border-radius:14px; padding:10px 12px; margin-top:10px}
+.acc.stage.open{border-color:var(--blue)}
+.acc.unit{margin-left:28px; border-radius:14px; padding:10px 12px; margin-top:10px}
+.acc.unit.open{border-color:var(--uc,var(--green))}
+.acc.fin{background:var(--green-bg); border-color:var(--green)}
+.acc.fin .sub{color:var(--green-dk)}
+.miniprog{height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:6px}
+.miniprog>div{height:100%; background:var(--green); border-radius:4px}
+.path{margin:14px 0 6px}
+
 .uhead{display:flex; align-items:center; gap:12px; margin:26px 0 10px}
-.uhead .num{flex-shrink:0; width:34px; height:34px; border-radius:10px; color:#fff;
+.uhead .num,.acc .num{flex-shrink:0; width:34px; height:34px; border-radius:10px; color:#fff;
   display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px}
 .uhead .t{font-weight:800; font-size:16px}
 .uhead .sub{font-size:12px; color:var(--muted)}
@@ -409,17 +435,35 @@ function firstUndone(){
   return null;
 }
 
+/* ---------- Навигация: 2 части → 5 этапов → 5 юнитов → 6 уроков (≤7 на шаг) ---------- */
+let UI={part:null,stage:-1,unit:-1}; // null = авто-раскрыть к текущему уроку
+function chunk(a,n){const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o;}
+const PART_NAMES=['Негиз · основа','Өсүш · развитие'];
+function dnU(u){return u.lessons.filter(l=>S.doneLessons[l.id]).length;}
+
 function home(){
   const due=dueRanks().length;
   const lv=level();
   const nxt=firstUndone();
+  const stages=chunk(S.course.units,5);
+  const parts=chunk(stages,5);
+  if(UI.part===null){
+    const gi=nxt?Math.max(0,S.course.units.findIndex(u=>u.id===nxt.u.id)):0;
+    UI.unit=gi; UI.stage=Math.floor(gi/5); UI.part=Math.floor(gi/25);
+  }
+  const tips={
+    streak:`🔥 Стрик: ${S.streak.count} ${dayWord(S.streak.count)} занятий подряд. Проходи хотя бы один урок в день, чтобы он рос. Пропуск дня без заморозки обнуляет стрик.`,
+    frz:`❄️ Заморозки: ${S.streak.freezes} из 2. Если пропустишь день, одна заморозка сгорит вместо стрика. Запас восстанавливается до 2 за каждые 7 дней стрика.`,
+    xp:`⚡ Опыт (XP): ${S.xp}. Даётся за уроки и повторения, бонус — за урок без ошибок. Уровень: ${lv.name}.${lv.next?` До «${lv.next[1]}» — ${lv.next[0]-S.xp} XP.`:''}`,
+    goal:`🎯 Цель дня: пройдено ${S.doneToday} из ${S.goal}. Кольцо заполняется с каждым уроком. Изменить цель можно внизу страницы.`};
   let html=`
   <div class="statbar">
-    <span class="stat streak-c"><span class="ic">🔥</span>${S.streak.count}</span>
-    <span class="stat frz-c"><span class="ic">❄️</span>${S.streak.freezes}</span>
-    <span class="stat xp-c"><span class="ic">⚡</span>${S.xp}</span>
-    <span class="stat">${goalRing()}<span class="small muted">${S.doneToday}/${S.goal}</span></span>
+    <button class="stat streak-c" data-k="streak"><span class="ic">🔥</span>${S.streak.count}</button>
+    <button class="stat frz-c" data-k="frz"><span class="ic">❄️</span>${S.streak.freezes}</button>
+    <button class="stat xp-c" data-k="xp"><span class="ic">⚡</span>${S.xp}</button>
+    <button class="stat" data-k="goal">${goalRing()}<span class="small muted">${S.doneToday}/${S.goal}</span></button>
   </div>
+  <div class="tipbox" id="tipbox" hidden></div>
   <div style="display:flex; align-items:center; gap:12px">
     ${marmot(56)}
     <div><h1 style="margin:0">Кыргызча</h1>
@@ -428,28 +472,76 @@ function home(){
   if(nxt) html+=`<div class="continue"><button class="btn" id="cont">Продолжить · ${esc(nxt.u.title)}</button></div>`;
   if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due} слов</button>`;
 
-  for(const u of S.course.units){
-    const ci=(u.id-1)%UNIT_COLORS.length, [c,cd]=UNIT_COLORS[ci];
-    const doneN=u.lessons.filter(l=>S.doneLessons[l.id]).length;
-    html+=`<div class="uhead"><div class="num" style="background:${c}">${u.id}</div>
-      <div><div class="t">${esc(u.title)}</div>
-      <div class="sub">${u.words.length} слов · ${doneN}/${u.lessons.length}</div></div></div>
-      <div class="path" style="--uc:${c};--ucd:${cd}">`;
-    u.lessons.forEach((l,i)=>{
-      const done=!!S.doneLessons[l.id];
-      const cur=nxt&&nxt.l.id===l.id;
-      const zig=['','zig-l','','zig-r',''][i%4]||'';
-      html+=`<button class="node ${done?'done':''} ${cur?'cur':''} ${zig}" data-l="${l.id}" data-u="${u.id}">
-        ${cur?'<span class="tip">НАЧАТЬ</span>':''}${done?'✓':(cur?'★':i+1)}</button>`;
+  parts.forEach((pst,pi)=>{
+    const pu=pst.flat();
+    const pd=pu.reduce((s,u)=>s+dnU(u),0), pt=pu.reduce((s,u)=>s+u.lessons.length,0);
+    const pOpen=UI.part===pi;
+    html+=`<button class="acc part ${pOpen?'open':''} ${pd===pt?'fin':''}" data-p="${pi}">
+      <div class="grow"><div class="ttl">Часть ${pi+1} · ${PART_NAMES[pi]||''}</div>
+      <div class="sub">юниты ${pu[0].id}–${pu[pu.length-1].id} · ${pd}/${pt} уроков</div>
+      <div class="miniprog"><div style="width:${pt?100*pd/pt:0}%"></div></div></div>
+      <span class="chev">▾</span></button>`;
+    if(!pOpen)return;
+    pst.forEach((su,sl)=>{
+      const si=pi*5+sl;
+      const sd=su.reduce((s,u)=>s+dnU(u),0), stt=su.reduce((s,u)=>s+u.lessons.length,0);
+      const sOpen=UI.stage===si;
+      html+=`<button class="acc stage ${sOpen?'open':''} ${sd===stt?'fin':''}" data-s="${si}">
+        <div class="grow"><div class="ttl">Этап ${si+1}</div>
+        <div class="sub">юниты ${su[0].id}–${su[su.length-1].id} · ${sd}/${stt} уроков</div></div>
+        <span class="chev">▾</span></button>`;
+      if(!sOpen)return;
+      su.forEach(u=>{
+        const gi=S.course.units.indexOf(u);
+        const ci=(u.id-1)%UNIT_COLORS.length, [c,cd]=UNIT_COLORS[ci];
+        const dN=dnU(u), uOpen=UI.unit===gi;
+        html+=`<button class="acc unit ${uOpen?'open':''}" data-un="${gi}" style="--uc:${c}">
+          <div class="num" style="background:${c}">${u.id}</div>
+          <div class="grow"><div class="ttl">${esc(u.title)}</div>
+          <div class="sub">${u.words.length} слов · ${dN}/${u.lessons.length} уроков</div></div>
+          <span class="chev">▾</span></button>`;
+        if(!uOpen)return;
+        html+=`<div class="path" style="--uc:${c};--ucd:${cd}">`;
+        u.lessons.forEach((l,i)=>{
+          const done=!!S.doneLessons[l.id];
+          const cur=nxt&&nxt.l.id===l.id;
+          const zig=['','zig-l','','zig-r',''][i%4]||'';
+          html+=`<button class="node ${done?'done':''} ${cur?'cur':''} ${zig}" data-l="${l.id}" data-u="${u.id}">
+            ${cur?'<span class="tip">НАЧАТЬ</span>':''}${done?'✓':(cur?'★':i+1)}</button>`;
+        });
+        html+=`</div>`;
+      });
     });
-    html+=`</div>`;
-  }
+  });
+
   html+=`<div class="footer">Цель дня: <select id="goal">${[1,2,3,4,5].map(n=>
       `<option ${n===S.goal?'selected':''}>${n}</option>`).join('')}</select> урок(а)
     · <a href="#" id="logout">выйти</a><br><br>
     Переводы и темы составлены с помощью ИИ по словарям и частотным спискам —
     возможны неточности.</div>`;
   app.innerHTML=html;
+
+  /* подсказки — только для иконок статбара */
+  const tb=$('#tipbox');
+  document.querySelectorAll('.stat').forEach(b=>b.onclick=()=>{
+    if(!tb.hidden&&tb.dataset.k===b.dataset.k){tb.hidden=true;return;}
+    tb.textContent=tips[b.dataset.k]; tb.dataset.k=b.dataset.k; tb.hidden=false;});
+  tb.onclick=()=>tb.hidden=true;
+
+  /* дерево */
+  const keep=()=>{const y=scrollY; home(); requestAnimationFrame(()=>scrollTo(0,y));};
+  document.querySelectorAll('.acc.part').forEach(b=>b.onclick=()=>{
+    const p=+b.dataset.p;
+    if(UI.part===p)UI.part=-1; else {UI.part=p; UI.stage=-1; UI.unit=-1;}
+    keep();});
+  document.querySelectorAll('.acc.stage').forEach(b=>b.onclick=()=>{
+    const s=+b.dataset.s;
+    if(UI.stage===s)UI.stage=-1; else {UI.stage=s; UI.unit=-1;}
+    keep();});
+  document.querySelectorAll('.acc.unit').forEach(b=>b.onclick=()=>{
+    const un=+b.dataset.un;
+    UI.unit=UI.unit===un?-1:un;
+    keep();});
 
   const open=(uid,lid)=>{
     const u=S.course.units.find(x=>x.id==uid);
@@ -468,14 +560,29 @@ function home(){
 
 /* ---------- Генерация упражнений ---------- */
 function distractors(word,n,field){
-  const pool=S.wordbank.words.filter(w=>w.freq_rank!==word.freq_rank);
-  const out=[]; const used=new Set([field==='word'?word.word:shortTr(word)]);
-  while(out.length<n&&pool.length){
-    const w=pool.splice(Math.floor(Math.random()*pool.length),1)[0];
+  /* дистракторы подбираются близкими по длине и числу слов к правильному ответу,
+     чтобы верный вариант не выделялся визуально */
+  const ansV=field==='word'?word.word:shortTr(word);
+  const used=new Set([ansV]);
+  const cand=[];
+  for(const w of S.wordbank.words){
+    if(w.freq_rank===word.freq_rank)continue;
     const v=field==='word'?w.word:shortTr(w);
-    if(!used.has(v)){used.add(v);out.push(v);}
+    if(used.has(v))continue;
+    used.add(v);
+    const dLen=Math.abs(v.length-ansV.length);
+    const dWords=Math.abs(v.split(/\s+/).length-ansV.split(/\s+/).length);
+    const seen=!!(S.srs[w.freq_rank]&&S.srs[w.freq_rank].seen>0);
+    cand.push({v,seen,score:dLen+dWords*6+Math.random()*4});
   }
-  return out;}
+  cand.sort((a,b)=>a.score-b.score);
+  const out=cand.slice(0,n);
+  /* хотя бы 1 уже изученное слово среди дистракторов */
+  if(n>0&&!out.some(c=>c.seen)){
+    const s=cand.find(c=>c.seen&&!out.includes(c));
+    if(s)out[out.length-1]=s;
+  }
+  return out.map(c=>c.v);}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));
   [a[i],a[j]]=[a[j],a[i]];}return a;}
 
@@ -536,7 +643,7 @@ async function finishSession(results,baseXP){
       <div class="fstat o"><div class="h">Стрик</div><div class="v">🔥 ${S.streak.count}</div></div>
     </div>
     <button class="btn" id="cont">Дальше</button></div>`;
-  $('#cont').onclick=()=>render(home);
+  $('#cont').onclick=()=>{UI.part=null; render(home);}; // раскрыть дерево к следующему уроку
 }
 function dayWord(n){const m=n%10,h=n%100;
   if(h>=11&&h<=14)return 'дней'; if(m===1)return 'день'; if(m>=2&&m<=4)return 'дня'; return 'дней';}
@@ -726,7 +833,7 @@ function confetti(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.2-ui+suur3 2026-07-04 */
+/* build: v0.2-ui+nav1 2026-07-04 — tooltips статбара, дерево навигации, дистракторы по длине */
 </script>
 </body>
 </html>
