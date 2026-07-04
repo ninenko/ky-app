@@ -355,14 +355,24 @@ async function loadContent(){
       ||cached.wordbank.schema!==fresh.wordbank.schema;
     S.wordbank=fresh.wordbank; S.course=fresh.course; index();
     await kvSet('content',fresh);
-    if(!cached) render(home);
-    else if(changed){toast('Контент обновлён'); render(home);}
+    if(!cached){await migrateDone(); render(home);}
+    else if(changed){S.doneLessons={}; await migrateDone(); UI.cat=null;
+      toast('Контент обновлён'); render(home);}
   }catch(e){
     if(!cached){app.innerHTML=`<div class="wordcard">Не удалось загрузить контент: ${esc(e.message)}.
       <br><br>Проверь доступ (вход выполнен под ${esc(S.user?.email||'?')}).</div>
       <button class="btn ghost" onclick="firebase.auth().signOut().then(()=>location.reload())">Выйти</button>`;}
     else toast('Оффлайн: использую кэш');
   }
+}
+
+/* урок считается пройденным, если все его слова уже изучались (SRS) */
+async function migrateDone(){
+  let ch=false;
+  for(const u of S.course.units)for(const l of u.lessons)
+    if(!S.doneLessons[l.id]&&l.word_ranks.length&&
+       l.word_ranks.every(r=>S.srs[r]&&S.srs[r].seen>0)){S.doneLessons[l.id]=true; ch=true;}
+  if(ch)await kvSet('doneLessons',S.doneLessons);
 }
 function index(){
   S.byRank={};
@@ -435,21 +445,50 @@ function firstUndone(){
   return null;
 }
 
-/* ---------- Навигация: 2 части → 5 этапов → 5 юнитов → 6 уроков (≤7 на шаг) ---------- */
-let UI={part:null,stage:-1,unit:-1}; // null = авто-раскрыть к текущему уроку
-function chunk(a,n){const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o;}
-const PART_NAMES=['Негиз · основа','Өсүш · развитие'];
+/* ---------- Навигация: категории (темы) → юниты → дорожка уроков ---------- */
+let UI={cat:null,unit:-1}; // cat=null → авто-раскрыть к текущему уроку
+const CAT_ICONS={'Служебные слова':'🔗','Местоимения и указатели':'👉','Числа и количество':'🔢',
+ 'Время и календарь':'🕐','Общество и народ':'👥','Государство и политика':'🏢','Люди и семья':'👪',
+ 'Качества и свойства':'✨','Речь и информация':'💬','Место и география':'🌍',
+ 'Природа и окружающий мир':'🌿','Абстрактные понятия':'💭','Тело и здоровье':'💪',
+ 'Работа и дело':'💼','Безопасность и закон':'🚨','Действия и процессы':'🏃',
+ 'Общая лексика':'📚','Экономика и деньги':'💰','Образование и культура':'🎓',
+ 'Техника и транспорт':'🚗'};
 function dnU(u){return u.lessons.filter(l=>S.doneLessons[l.id]).length;}
+function catGroups(){
+  const gs=[],ix={};
+  for(const u of S.course.units){
+    const t=u.topic||u.title;
+    if(!(t in ix)){ix[t]=gs.length; gs.push({t,units:[]});}
+    gs[ix[t]].units.push(u);
+  }
+  return gs;
+}
+function pathHTML(u,nxt){
+  const ci=(u.id-1)%UNIT_COLORS.length, [c,cd]=UNIT_COLORS[ci];
+  let h=`<div class="path" style="--uc:${c};--ucd:${cd}">`;
+  u.lessons.forEach((l,i)=>{
+    const done=!!S.doneLessons[l.id];
+    const cur=nxt&&nxt.l.id===l.id;
+    const zig=['','zig-l','','zig-r',''][i%4]||'';
+    h+=`<button class="node ${done?'done':''} ${cur?'cur':''} ${zig}" data-l="${l.id}" data-u="${u.id}">
+      ${cur?'<span class="tip">НАЧАТЬ</span>':''}${done?'✓':(cur?'★':i+1)}</button>`;
+  });
+  return h+`</div>`;
+}
 
 function home(){
   const due=dueRanks().length;
   const lv=level();
   const nxt=firstUndone();
-  const stages=chunk(S.course.units,5);
-  const parts=chunk(stages,5);
-  if(UI.part===null){
-    const gi=nxt?Math.max(0,S.course.units.findIndex(u=>u.id===nxt.u.id)):0;
-    UI.unit=gi; UI.stage=Math.floor(gi/5); UI.part=Math.floor(gi/25);
+  const cats=catGroups();
+  if(UI.cat===null){
+    UI.cat=0; UI.unit=0;
+    if(nxt){
+      const gi=S.course.units.findIndex(u=>u.id===nxt.u.id);
+      UI.unit=Math.max(0,gi);
+      UI.cat=Math.max(0,cats.findIndex(g=>g.units.some(u=>u.id===nxt.u.id)));
+    }
   }
   const tips={
     streak:`🔥 Стрик: ${S.streak.count} ${dayWord(S.streak.count)} занятий подряд. Проходи хотя бы один урок в день, чтобы он рос. Пропуск дня без заморозки обнуляет стрик.`,
@@ -472,45 +511,27 @@ function home(){
   if(nxt) html+=`<div class="continue"><button class="btn" id="cont">Продолжить · ${esc(nxt.u.title)}</button></div>`;
   if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due} слов</button>`;
 
-  parts.forEach((pst,pi)=>{
-    const pu=pst.flat();
-    const pd=pu.reduce((s,u)=>s+dnU(u),0), pt=pu.reduce((s,u)=>s+u.lessons.length,0);
-    const pOpen=UI.part===pi;
-    html+=`<button class="acc part ${pOpen?'open':''} ${pd===pt?'fin':''}" data-p="${pi}">
-      <div class="grow"><div class="ttl">Часть ${pi+1} · ${PART_NAMES[pi]||''}</div>
-      <div class="sub">юниты ${pu[0].id}–${pu[pu.length-1].id} · ${pd}/${pt} уроков</div>
-      <div class="miniprog"><div style="width:${pt?100*pd/pt:0}%"></div></div></div>
+  cats.forEach((g,giCat)=>{
+    const cd2=g.units.reduce((s,u)=>s+dnU(u),0), ct=g.units.reduce((s,u)=>s+u.lessons.length,0);
+    const nw=g.units.reduce((s,u)=>s+u.words.length,0);
+    const open=UI.cat===giCat;
+    html+=`<button class="acc part ${open?'open':''} ${cd2===ct?'fin':''}" data-c="${giCat}">
+      <div class="grow"><div class="ttl">${CAT_ICONS[g.t]||'📁'} ${esc(g.t)}</div>
+      <div class="sub">${nw} слов · ${cd2}/${ct} уроков</div>
+      <div class="miniprog"><div style="width:${ct?100*cd2/ct:0}%"></div></div></div>
       <span class="chev">▾</span></button>`;
-    if(!pOpen)return;
-    pst.forEach((su,sl)=>{
-      const si=pi*5+sl;
-      const sd=su.reduce((s,u)=>s+dnU(u),0), stt=su.reduce((s,u)=>s+u.lessons.length,0);
-      const sOpen=UI.stage===si;
-      html+=`<button class="acc stage ${sOpen?'open':''} ${sd===stt?'fin':''}" data-s="${si}">
-        <div class="grow"><div class="ttl">Этап ${si+1}</div>
-        <div class="sub">юниты ${su[0].id}–${su[su.length-1].id} · ${sd}/${stt} уроков</div></div>
+    if(!open)return;
+    if(g.units.length===1){ html+=pathHTML(g.units[0],nxt); return; }
+    g.units.forEach(u=>{
+      const gi=S.course.units.indexOf(u);
+      const ci=(u.id-1)%UNIT_COLORS.length, [c]=UNIT_COLORS[ci];
+      const dN=dnU(u), uOpen=UI.unit===gi;
+      html+=`<button class="acc unit ${uOpen?'open':''} ${dN===u.lessons.length?'fin':''}" data-un="${gi}" style="--uc:${c}">
+        <div class="num" style="background:${c}">${u.title.split(' ').pop()}</div>
+        <div class="grow"><div class="ttl">${esc(u.title)}</div>
+        <div class="sub">${u.words.length} слов · ${dN}/${u.lessons.length} уроков</div></div>
         <span class="chev">▾</span></button>`;
-      if(!sOpen)return;
-      su.forEach(u=>{
-        const gi=S.course.units.indexOf(u);
-        const ci=(u.id-1)%UNIT_COLORS.length, [c,cd]=UNIT_COLORS[ci];
-        const dN=dnU(u), uOpen=UI.unit===gi;
-        html+=`<button class="acc unit ${uOpen?'open':''}" data-un="${gi}" style="--uc:${c}">
-          <div class="num" style="background:${c}">${u.id}</div>
-          <div class="grow"><div class="ttl">${esc(u.title)}</div>
-          <div class="sub">${u.words.length} слов · ${dN}/${u.lessons.length} уроков</div></div>
-          <span class="chev">▾</span></button>`;
-        if(!uOpen)return;
-        html+=`<div class="path" style="--uc:${c};--ucd:${cd}">`;
-        u.lessons.forEach((l,i)=>{
-          const done=!!S.doneLessons[l.id];
-          const cur=nxt&&nxt.l.id===l.id;
-          const zig=['','zig-l','','zig-r',''][i%4]||'';
-          html+=`<button class="node ${done?'done':''} ${cur?'cur':''} ${zig}" data-l="${l.id}" data-u="${u.id}">
-            ${cur?'<span class="tip">НАЧАТЬ</span>':''}${done?'✓':(cur?'★':i+1)}</button>`;
-        });
-        html+=`</div>`;
-      });
+      if(uOpen) html+=pathHTML(u,nxt);
     });
   });
 
@@ -531,12 +552,8 @@ function home(){
   /* дерево */
   const keep=()=>{const y=scrollY; home(); requestAnimationFrame(()=>scrollTo(0,y));};
   document.querySelectorAll('.acc.part').forEach(b=>b.onclick=()=>{
-    const p=+b.dataset.p;
-    if(UI.part===p)UI.part=-1; else {UI.part=p; UI.stage=-1; UI.unit=-1;}
-    keep();});
-  document.querySelectorAll('.acc.stage').forEach(b=>b.onclick=()=>{
-    const s=+b.dataset.s;
-    if(UI.stage===s)UI.stage=-1; else {UI.stage=s; UI.unit=-1;}
+    const c2=+b.dataset.c;
+    if(UI.cat===c2)UI.cat=-1; else {UI.cat=c2; UI.unit=-1;}
     keep();});
   document.querySelectorAll('.acc.unit').forEach(b=>b.onclick=()=>{
     const un=+b.dataset.un;
@@ -643,7 +660,7 @@ async function finishSession(results,baseXP){
       <div class="fstat o"><div class="h">Стрик</div><div class="v">🔥 ${S.streak.count}</div></div>
     </div>
     <button class="btn" id="cont">Дальше</button></div>`;
-  $('#cont').onclick=()=>{UI.part=null; render(home);}; // раскрыть дерево к следующему уроку
+  $('#cont').onclick=()=>{UI.cat=null; render(home);}; // раскрыть дерево к следующему уроку
 }
 function dayWord(n){const m=n%10,h=n%100;
   if(h>=11&&h<=14)return 'дней'; if(m===1)return 'день'; if(m>=2&&m<=4)return 'дня'; return 'дней';}
@@ -833,7 +850,7 @@ function confetti(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.2-ui+nav1 2026-07-04 — tooltips статбара, дерево навигации, дистракторы по длине */
+/* build: v0.2-ui+nav2 2026-07-04 — категории-темы (курс v2), школьная лексика, миграция прогресса из SRS */
 </script>
 </body>
 </html>
