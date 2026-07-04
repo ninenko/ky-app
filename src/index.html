@@ -123,7 +123,7 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .goalring .fgc{stroke:var(--green); stroke-linecap:round; transition:stroke-dashoffset .5s}
 
 .continue{margin:14px 0}
-.lvl{font-size:13px; font-weight:700; color:var(--muted); margin-top:-6px}
+.lvl{font-size:13px; font-weight:700; color:var(--muted)}
 
 .uhead{display:flex; align-items:center; gap:12px; margin:26px 0 10px}
 .uhead .num{flex-shrink:0; width:34px; height:34px; border-radius:10px; color:#fff;
@@ -149,8 +149,7 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .zig-l{transform:translateX(-40px)} .zig-r{transform:translateX(40px)}
 
 /* ---- финал урока ---- */
-.finish{padding-top:14vh; text-align:center}
-.finish .emoji{font-size:64px; animation:pop .4s cubic-bezier(.22,1.4,.36,1)}
+.finish{padding-top:10vh; text-align:center}
 .fstats{display:flex; gap:10px; justify-content:center; margin:22px 0}
 .fstat{border:2px solid; border-radius:var(--r); min-width:96px; overflow:hidden}
 .fstat .h{font-size:12px; font-weight:800; color:#fff; padding:4px; text-transform:uppercase}
@@ -196,7 +195,7 @@ select{font:inherit; border:2px solid var(--line); border-radius:8px; padding:2p
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 /* ============ Кыргызча v0.2-ui — оболочка без контента.
-   Микро-уроки, геймификация, дизайн в духе Duolingo.
+   Микро-уроки, геймификация, маскот Суур, дизайн в духе Duolingo.
    Весь словарь/курс приходит из Firebase RTDB после входа. ============ */
 'use strict';
 
@@ -625,4 +624,89 @@ function runSession(tasks,onDone){
       const field=t.type==='ky2ru'?'tr':'word';
       const opts=shuffle([ans,...distractors(w,3,field==='word'?'word':'tr')]);
       ex.innerHTML=`<p class="prompt">${t.type==='ky2ru'?'Выбери перевод':'Выбери кыргызское слово'}</p>
-        <div class="${t.type==='ky2ru'?'kyword':'ruwor
+        <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${esc(q)}</div>
+        ${opts.map(o=>`<button class="opt">${esc(o)}</button>`).join('')}`;
+      document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+        const ok=b.textContent===ans;
+        b.classList.add(ok?'ok':'bad');
+        if(!ok){b.classList.add('shake');
+          document.querySelectorAll('.opt').forEach(x=>{
+            if(x.textContent===ans)x.classList.add('ok');});}
+        document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
+        finishTask(ok, ok?null:`${esc(w.word)} — ${esc(shortTr(w))}`);});
+      return;
+    }
+
+    /* -- набор текста -- */
+    if(t.type==='type'){
+      ex.innerHTML=`<p class="prompt">Напиши по-кыргызски</p>
+        <div class="ruword">${esc(shortTr(w))}</div>
+        <input type="text" id="inp" autocomplete="off" autocapitalize="off" lang="ky">
+        <div class="kyletters">${['ө','ү','ң'].map(c=>
+          `<button data-c="${c}">${c}</button>`).join('')}</div>
+        <button class="btn" id="check">Проверить</button>`;
+      const inp=$('#inp'); inp.focus();
+      document.querySelectorAll('.kyletters button').forEach(b=>b.onclick=()=>{
+        const s=inp.selectionStart||inp.value.length;
+        inp.value=inp.value.slice(0,s)+b.dataset.c+inp.value.slice(s);
+        inp.focus(); inp.selectionStart=inp.selectionEnd=s+1;});
+      const check=()=>{
+        if(!inp.value.trim())return;
+        const norm=s=>s.toLowerCase().replace(/ё/g,'е').trim().replace(/\s+/g,' ');
+        const ok=norm(inp.value)===norm(w.word);
+        $('#check').disabled=true; inp.disabled=true;
+        finishTask(ok, ok?null:`Правильно: <b>${esc(w.word)}</b>`);};
+      $('#check').onclick=check;
+      inp.onkeydown=e=>{if(e.key==='Enter'&&!$('#check').disabled)check();};
+      return;
+    }
+  }
+  next();
+}
+function findTopic(r){
+  for(const u of S.course.units)
+    for(const w of u.words)
+      if(w.freq_rank===r)return w.topic;
+  return '';}
+
+/* ---------- Конфетти ---------- */
+function confetti(){
+  const cv=$('#confetti'), ctx=cv.getContext('2d');
+  cv.width=innerWidth; cv.height=innerHeight;
+  const cols=['#58cc02','#1cb0f6','#ffc400','#ff4b4b','#ce82ff'];
+  const ps=Array.from({length:80},()=>({
+    x:Math.random()*cv.width, y:-20-Math.random()*cv.height*0.5,
+    vx:(Math.random()-0.5)*3, vy:2+Math.random()*4,
+    s:5+Math.random()*6, c:cols[Math.floor(Math.random()*cols.length)],
+    a:Math.random()*Math.PI, va:(Math.random()-0.5)*0.3}));
+  let frames=0;
+  (function tick(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    for(const p of ps){
+      p.x+=p.vx; p.y+=p.vy; p.a+=p.va;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a);
+      ctx.fillStyle=p.c; ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s); ctx.restore();
+    }
+    if(++frames<130)requestAnimationFrame(tick);
+    else ctx.clearRect(0,0,cv.width,cv.height);
+  })();
+}
+
+/* ---------- Запуск ---------- */
+(async function(){
+  idb=await idbOpen();
+  await loadMeta();
+  firebase.auth().onAuthStateChanged(async u=>{
+    if(!u){render(loginScreen);return;}
+    S.user=u;
+    app.innerHTML=`<div class="center" style="padding-top:30vh">Загружаю курс…</div>`;
+    S.srs=await srsAll();
+    await loadContent();
+  });
+  if('serviceWorker'in navigator)
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+/* build: v0.2-ui+suur 2026-07-04 */
+</script>
+</body>
+</html>
