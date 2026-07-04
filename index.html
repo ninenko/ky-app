@@ -264,8 +264,8 @@ function shortTr(w){ // основной перевод: часть до ';'
   return t||w.translation;}
 
 /* ---------- Уровни ---------- */
-const LEVELS=[[0,'Баштоочу 🌱'],[100,'Окуучу 📖'],[300,'Билгич 💡'],[700,'Чебер 🛠'],
-  [1500,'Устат 🏔'],[3000,'Акын 🎶'],[6000,'Манасчы 🦅']];
+const LEVELS=[[0,'Баштоочу 🌱'],[100,'Окуучу 📖'],[300,'Билгич 💡'],[700,'Чебер 🔨'],
+  [1500,'Устат 🗻'],[3000,'Акын 🎵'],[6000,'Манасчы 🦅']];
 function level(){let cur=LEVELS[0],next=null;
   for(const l of LEVELS){if(S.xp>=l[0])cur=l;else{next=l;break;}}
   return {name:cur[1],next};}
@@ -360,7 +360,6 @@ function marmot(size,cls=''){
       <circle cx="26" cy="26" r="9" fill="#8a6a42"/><circle cx="26" cy="26" r="5" fill="#6b4f2f"/>
       <circle cx="94" cy="26" r="9" fill="#8a6a42"/><circle cx="94" cy="26" r="5" fill="#6b4f2f"/>
       <circle cx="60" cy="42" r="30" fill="#c9a15e"/>
-      <path d="M32 34 Q60 12 88 34 Q74 24 60 24 Q46 24 32 34Z" fill="#7a5a38"/>
       <ellipse cx="60" cy="56" rx="15" ry="11" fill="#ecd3a1"/>
       <ellipse cx="60" cy="49" rx="5.5" ry="4" fill="#4a3423"/>
       <rect x="55" y="55" width="4.6" height="8" rx="1.5" fill="#fff"/>
@@ -381,7 +380,7 @@ function render(fn,...a){window.scrollTo(0,0); fn(...a);}
 function loginScreen(){
   app.innerHTML=`<div class="center" style="padding-top:12vh">
     ${marmot(150,'wave')}<h1>Кыргызча</h1>
-    <p class="muted">Салам! Я Суур, гималайский сурок.<br>Научу тебя кыргызскому 🇰🇬</p>
+    <p class="muted">Салам! Я Суур, гималайский сурок.<br>Научу тебя кыргызскому!</p>
     <div style="height:20px"></div>
     <button class="btn blue" id="login">Войти через Google</button></div>`;
   $('#login').onclick=async()=>{
@@ -631,7 +630,7 @@ function runSession(tasks,onDone){
         <div class="kyword">${esc(w.word)}</div>
         <div class="tr">${esc(w.translation)}</div>
         ${w.translation2?`<div class="also">также: ${esc(w.translation2)}</div>`:''}
-        <div><span class="topic-pill">${esc(findTopic(t.r))}</span></div></div>
+        ${findTopic(t.r)?`<div><span class="topic-pill">${esc(findTopic(t.r))}</span></div>`:''}</div>
         <button class="btn" id="ok">Понятно</button>`;
       $('#ok').onclick=()=>{done+=1;bump();queue.shift();next();};
       return;
@@ -727,7 +726,7 @@ function confetti(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.2-ui+suur2 2026-07-04 */
+/* build: v0.2-ui+suur3 2026-07-04 */
 </script>
 </body>
 </html>
