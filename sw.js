@@ -1,5 +1,5 @@
-/* Кыргызча v0.1 — service worker: кэш только оболочки (без контента). */
-const CACHE = 'kyapp-shell-v1';
+/* Кыргызча v0.2-ui — service worker: кэш только оболочки (без контента). */
+const CACHE = 'kyapp-shell-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -21,4 +21,4 @@ self.addEventListener('fetch', e => {
       return r;
     }).catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
-});
+}
