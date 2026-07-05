@@ -355,7 +355,11 @@ function srsInit(){return {step:-1,due:null,seen:0,lapses:0};}
 function srsOnResult(st,allCorrect){
   st.seen+=1;
   if(allCorrect){ st.step=Math.min(st.step+1,STEPS.length-1);
-    st.due=new Date(Date.now()+STEPS[st.step]*864e5).toISOString().slice(0,10);}
+    let idx=st.step;
+    /* «пиявки»: слово с высокой долей ошибок (≥3 ошибок и >1/3 показов) держим
+       в коротком цикле ≤16 дней, пока доля ошибок не разбавится успехами */
+    if(st.lapses>=3&&st.lapses*3>st.seen) idx=Math.min(idx,3);
+    st.due=new Date(Date.now()+STEPS[idx]*864e5).toISOString().slice(0,10);}
   else { st.lapses+=1; st.step=Math.max(-1,st.step-2); st.due=today(); }
   return st;}
 function dueRanks(){
@@ -800,8 +804,15 @@ function pLessonScreen(unit,lesson){
   });
 }
 function reviewScreen(){
-  const due=shuffle(dueRanks());
-  const wr=due.filter(r=>r<PID0).slice(0,5);
+  /* приоритет: сначала проблемные (больше ошибок), при равенстве — самые просроченные */
+  const due=dueRanks();
+  due.sort((a,b)=>{
+    const A=S.srs[a]||{},B=S.srs[b]||{};
+    return (B.lapses||0)-(A.lapses||0)
+      ||String(A.due||'').localeCompare(String(B.due||''))
+      ||Math.random()-0.5;
+  });
+  const wr=due.filter(r=>r<PID0).slice(0,7);
   const pr=due.filter(r=>r>PID0).slice(0,3);
   const tasks=[...buildTasks(wr,false),...buildPTasks(pr,false)];
   runSession(tasks,async results=>{
@@ -1149,7 +1160,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.3.1-sync 2026-07-05 — RTDB sync прогресса: progress/<uid>, local-first, merge по seen/датам, push после урока */
+/* build: v0.3.2-srs 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
