@@ -130,6 +130,25 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .continue{margin:14px 0}
 .lvl{font-size:13px; font-weight:700; color:var(--muted)}
 
+/* ---- переключатель уровней ---- */
+.lvltabs{display:flex; gap:8px; margin:14px 0 2px}
+.lvltab{flex:1; padding:10px 4px; font:inherit; font-size:13px; font-weight:800; cursor:pointer;
+  background:#fff; color:var(--muted); border:2px solid var(--line); border-bottom-width:4px;
+  border-radius:14px; text-align:center}
+.lvltab .big{display:block; font-size:20px; margin-bottom:2px}
+.lvltab.on{border-color:var(--blue); color:var(--blue-dk); background:#e3f4fd}
+.lvltab:active{border-bottom-width:2px; transform:translateY(2px)}
+
+/* ---- сборка предложения из плиток ---- */
+.tiles,.answer{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; min-height:48px}
+.answer{border-bottom:2px solid var(--line); padding-bottom:10px}
+.tile{padding:10px 14px; font:inherit; font-size:17px; font-weight:600; background:#fff;
+  border:2px solid var(--line); border-bottom-width:4px; border-radius:12px; cursor:pointer;
+  color:var(--text)}
+.tile:active{border-bottom-width:2px; transform:translateY(2px)}
+.tile.used{opacity:.25; pointer-events:none}
+.answer .tile{border-color:var(--blue)}
+
 /* ---- навигация: части → этапы → юниты ---- */
 .acc{display:flex; align-items:center; gap:12px; width:100%; text-align:left; font:inherit;
   color:var(--text); background:#fff; border:2px solid var(--line); border-bottom-width:4px;
@@ -238,9 +257,9 @@ select{font:inherit; border:2px solid var(--line); border-radius:8px; padding:2p
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-/* ============ Кыргызча v0.2-ui — оболочка без контента.
+/* ============ Кыргызча v0.3 — оболочка без контента.
    Микро-уроки, геймификация, маскот Суур, дизайн в духе Duolingo.
-   Весь словарь/курс приходит из Firebase RTDB после входа. ============ */
+   Весь словарь/курс/фразы приходят из Firebase RTDB после входа. ============ */
 'use strict';
 
 const firebaseConfig = {
@@ -276,7 +295,9 @@ function srsAll(){return new Promise((res,rej)=>{
 
 /* ---------- Состояние ---------- */
 let S={user:null, wordbank:null, course:null, byRank:{}, topicByRank:{}, srs:{}, confus:{},
+  phrases:null, byPid:{}, pcourse:null,
   streak:{count:0,last:null,freezes:2}, xp:0, goal:1, doneToday:0, doneLessons:{}};
+const PID0=20000; // id фраз начинаются с 20001 — не пересекаются с freq_rank слов
 
 const $=s=>document.querySelector(s);
 const app=$('#app');
@@ -346,15 +367,20 @@ function dueRanks(){
 /* ---------- Контент из RTDB ---------- */
 async function loadContent(){
   const cached=await kvGet('content');
-  if(cached){S.wordbank=cached.wordbank; S.course=cached.course; index(); render(home);}
+  if(cached){S.wordbank=cached.wordbank; S.course=cached.course;
+    S.phrases=cached.phrases||null; S.pcourse=cached.pcourse||null; index(); render(home);}
   try{
     const db=firebase.database();
-    const [wb,co]=await Promise.all([db.ref('wordbank').get(), db.ref('course').get()]);
+    const [wb,co,ph,pc]=await Promise.all([db.ref('wordbank').get(), db.ref('course').get(),
+      db.ref('phrases').get(), db.ref('pcourse').get()]);
     if(!wb.exists()||!co.exists()) throw new Error('нет данных в RTDB');
-    const fresh={wordbank:wb.val(),course:co.val()};
+    const fresh={wordbank:wb.val(),course:co.val(),
+      phrases:ph.exists()?ph.val():null, pcourse:pc.exists()?pc.val():null};
     const changed=!cached||JSON.stringify(cached.course.meta)!==JSON.stringify(fresh.course.meta)
-      ||cached.wordbank.schema!==fresh.wordbank.schema;
-    S.wordbank=fresh.wordbank; S.course=fresh.course; index();
+      ||cached.wordbank.schema!==fresh.wordbank.schema
+      ||JSON.stringify((cached.pcourse||{}).meta)!==JSON.stringify((fresh.pcourse||{}).meta);
+    S.wordbank=fresh.wordbank; S.course=fresh.course;
+    S.phrases=fresh.phrases; S.pcourse=fresh.pcourse; index();
     await kvSet('content',fresh);
     if(!cached){await migrateDone(); render(home);}
     else if(changed){S.doneLessons={}; await migrateDone(); UI.cat=null;
@@ -367,12 +393,16 @@ async function loadContent(){
   }
 }
 
-/* урок считается пройденным, если все его слова уже изучались (SRS) */
+/* урок считается пройденным, если все его слова/фразы уже изучались (SRS) */
 async function migrateDone(){
   let ch=false;
   for(const u of S.course.units)for(const l of u.lessons)
     if(!S.doneLessons[l.id]&&l.word_ranks.length&&
        l.word_ranks.every(r=>S.srs[r]&&S.srs[r].seen>0)){S.doneLessons[l.id]=true; ch=true;}
+  if(S.pcourse)for(const lv of ['level2','level3'])for(const u of S.pcourse[lv]||[])
+    for(const l of u.lessons)
+      if(!S.doneLessons[l.id]&&l.phrase_ids.length&&
+         l.phrase_ids.every(r=>S.srs[r]&&S.srs[r].seen>0)){S.doneLessons[l.id]=true; ch=true;}
   if(ch)await kvSet('doneLessons',S.doneLessons);
 }
 function index(){
@@ -381,6 +411,8 @@ function index(){
   S.topicByRank={};
   if(S.course)for(const u of S.course.units)for(const w of u.words)
     S.topicByRank[w.freq_rank]=w.topic||u.topic||'';
+  S.byPid={};
+  if(S.phrases)for(const p of S.phrases.phrases) S.byPid[p.id]=p;
 }
 
 /* ---------- Маскот: суур ---------- */
@@ -449,8 +481,8 @@ function firstUndone(){
   return null;
 }
 
-/* ---------- Навигация: категории (темы) → юниты → дорожка уроков ---------- */
-let UI={cat:null,unit:-1}; // cat=null → авто-раскрыть к текущему уроку
+/* ---------- Навигация: уровни → категории → юниты → дорожка ---------- */
+let UI={cat:null,unit:-1,lvl:1}; // cat=null → авто-раскрыть к текущему уроку; lvl: 1 слова / 2 фразы / 3 предложения
 const CAT_ICONS={'Служебные слова':'🔗','Местоимения и указатели':'👉','Числа и количество':'🔢',
  'Время и календарь':'🕐','Общество и народ':'👥','Государство и политика':'🏢','Люди и семья':'👪',
  'Качества и свойства':'✨','Речь и информация':'💬','Место и география':'🌍',
@@ -459,6 +491,28 @@ const CAT_ICONS={'Служебные слова':'🔗','Местоимения 
  'Общая лексика':'📚','Экономика и деньги':'💰','Образование и культура':'🎓',
  'Техника и транспорт':'🚗'};
 function dnU(u){return u.lessons.filter(l=>S.doneLessons[l.id]).length;}
+const PH_ICONS={'Приветствия и вежливость':'👋','Здоровье':'💪','Еда и магазин':'🛒','Время':'🕐',
+ 'Учёба и школа':'🎓','Семья':'👪','Работа':'💼','Город и транспорт':'🚌','Природа и страна':'🌄',
+ 'Досуг и спорт':'⚽','Действия':'🏃','Пословицы':'🪶','Общие фразы':'💬'};
+function pUnits(){return UI.lvl===2?(S.pcourse&&S.pcourse.level2||[]):(S.pcourse&&S.pcourse.level3||[]);}
+function firstUndoneP(){
+  for(const u of pUnits())
+    for(const l of u.lessons)
+      if(!S.doneLessons[l.id]) return {u,l};
+  return null;
+}
+function pPathHTML(u,nxt){
+  const ci=(u.id-1)%UNIT_COLORS.length, [c,cd]=UNIT_COLORS[ci];
+  let h=`<div class="path" style="--uc:${c};--ucd:${cd}">`;
+  u.lessons.forEach((l,i)=>{
+    const done=!!S.doneLessons[l.id];
+    const cur=nxt&&nxt.l.id===l.id;
+    const zig=['','zig-l','','zig-r',''][i%4]||'';
+    h+=`<button class="node ${done?'done':''} ${cur?'cur':''} ${zig}" data-pl="${l.id}" data-pu="${u.id}">
+      ${cur?'<span class="tip">НАЧАТЬ</span>':''}${done?'✓':(cur?'★':i+1)}</button>`;
+  });
+  return h+`</div>`;
+}
 function catGroups(){
   const gs=[],ix={};
   for(const u of S.course.units){
@@ -485,14 +539,16 @@ function home(){
   const due=dueRanks().length;
   const lv=level();
   const nxt=firstUndone();
+  const nxtP=UI.lvl>1?firstUndoneP():null;
   const cats=catGroups();
   if(UI.cat===null){
     UI.cat=0; UI.unit=0;
-    if(nxt){
+    if(UI.lvl===1&&nxt){
       const gi=S.course.units.findIndex(u=>u.id===nxt.u.id);
       UI.unit=Math.max(0,gi);
       UI.cat=Math.max(0,cats.findIndex(g=>g.units.some(u=>u.id===nxt.u.id)));
     }
+    if(UI.lvl>1)UI.cat=nxtP?pUnits().findIndex(u=>u.id===nxtP.u.id):0;
   }
   const tips={
     streak:`🔥 Стрик: ${S.streak.count} ${dayWord(S.streak.count)} занятий подряд. Проходи хотя бы один урок в день, чтобы он рос. Пропуск дня без заморозки обнуляет стрик.`,
@@ -512,9 +568,17 @@ function home(){
     <div><h1 style="margin:0">Кыргызча</h1>
     <div class="lvl">${esc(lv.name)}${lv.next?` · до «${esc(lv.next[1])}» ${lv.next[0]-S.xp} XP`:''}</div></div>
   </div>`;
-  if(nxt) html+=`<div class="continue"><button class="btn" id="cont">Продолжить · ${esc(nxt.u.title)}</button></div>`;
-  if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due} слов</button>`;
+  const hasPh=!!(S.pcourse&&S.phrases);
+  if(hasPh) html+=`<div class="lvltabs">
+    <button class="lvltab ${UI.lvl===1?'on':''}" data-lvl="1"><span class="big">🔤</span>Слова</button>
+    <button class="lvltab ${UI.lvl===2?'on':''}" data-lvl="2"><span class="big">💬</span>Фразы</button>
+    <button class="lvltab ${UI.lvl===3?'on':''}" data-lvl="3"><span class="big">📜</span>Предложения</button>
+  </div>`;
+  if(UI.lvl===1&&nxt) html+=`<div class="continue"><button class="btn" id="cont">Продолжить · ${esc(nxt.u.title)}</button></div>`;
+  if(UI.lvl>1&&nxtP) html+=`<div class="continue"><button class="btn" id="contp">Продолжить · ${esc(nxtP.u.title)}</button></div>`;
+  if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due}</button>`;
 
+  if(UI.lvl===1)
   cats.forEach((g,giCat)=>{
     const cd2=g.units.reduce((s,u)=>s+dnU(u),0), ct=g.units.reduce((s,u)=>s+u.lessons.length,0);
     const nw=g.units.reduce((s,u)=>s+u.words.length,0);
@@ -538,12 +602,24 @@ function home(){
       if(uOpen) html+=pathHTML(u,nxt);
     });
   });
+  else
+  pUnits().forEach((u,gi)=>{
+    const dN=dnU(u), ct=u.lessons.length;
+    const ci=(u.id-1)%UNIT_COLORS.length, [c]=UNIT_COLORS[ci];
+    const open=UI.cat===gi;
+    html+=`<button class="acc part ${open?'open':''} ${dN===ct?'fin':''}" data-c="${gi}" style="--uc:${c}">
+      <div class="grow"><div class="ttl">${PH_ICONS[u.topic]||'📁'} ${esc(u.title)}</div>
+      <div class="sub">${u.phrase_ids.length} фраз · ${dN}/${ct} уроков</div>
+      <div class="miniprog"><div style="width:${ct?100*dN/ct:0}%"></div></div></div>
+      <span class="chev">▾</span></button>`;
+    if(open) html+=pPathHTML(u,nxtP);
+  });
 
   html+=`<div class="footer">Цель дня: <select id="goal">${[1,2,3,4,5].map(n=>
       `<option ${n===S.goal?'selected':''}>${n}</option>`).join('')}</select> урок(а)
     · <a href="#" id="logout">выйти</a><br><br>
-    Переводы и темы составлены с помощью ИИ по словарям и частотным спискам —
-    возможны неточности.</div>`;
+    Переводы и темы составлены с помощью ИИ по словарям, учебникам и частотным спискам —
+    возможны неточности. Фразы: самоучитель Исаева/Шнейдмана (1988), Tatoeba.</div>`;
   app.innerHTML=html;
 
   /* подсказки — только для иконок статбара */
@@ -555,6 +631,8 @@ function home(){
 
   /* дерево */
   const keep=()=>{const y=scrollY; home(); requestAnimationFrame(()=>scrollTo(0,y));};
+  document.querySelectorAll('.lvltab').forEach(b=>b.onclick=()=>{
+    UI.lvl=+b.dataset.lvl; UI.cat=null; UI.unit=-1; home();});
   document.querySelectorAll('.acc.part').forEach(b=>b.onclick=()=>{
     const c2=+b.dataset.c;
     if(UI.cat===c2)UI.cat=-1; else {UI.cat=c2; UI.unit=-1;}
@@ -568,8 +646,14 @@ function home(){
     const u=S.course.units.find(x=>x.id==uid);
     const l=u.lessons.find(x=>x.id===lid);
     render(lessonScreen,u,l);};
-  document.querySelectorAll('.node').forEach(b=>b.onclick=()=>open(b.dataset.u,b.dataset.l));
-  if(nxt)$('#cont').onclick=()=>open(nxt.u.id,nxt.l.id);
+  const openP=(uid,lid)=>{
+    const u=pUnits().find(x=>x.id==uid);
+    const l=u.lessons.find(x=>x.id===lid);
+    render(pLessonScreen,u,l);};
+  document.querySelectorAll('.node').forEach(b=>b.onclick=()=>
+    b.dataset.pl?openP(b.dataset.pu,b.dataset.pl):open(b.dataset.u,b.dataset.l));
+  if(UI.lvl===1&&nxt)$('#cont').onclick=()=>open(nxt.u.id,nxt.l.id);
+  if(UI.lvl>1&&nxtP)$('#contp').onclick=()=>openP(nxtP.u.id,nxtP.l.id);
   const rv=$('#review'); if(rv)rv.onclick=()=>render(reviewScreen);
   $('#goal').onchange=async e=>{S.goal=+e.target.value; await kvSet('goal',S.goal);};
   $('#logout').onclick=e=>{e.preventDefault();
@@ -647,6 +731,57 @@ function buildTasks(ranks,withIntro){
   for(const r of ranks)if(S.byRank[r])tasks.push({type:'type',r});
   return tasks;}
 
+/* ---------- Фразы: дистракторы и задания ---------- */
+function pdistract(ph,n){
+  /* переводы других фраз: тот же уровень, приоритет — та же тема, близкая длина */
+  const conf=S.confus[ph.id]||{};
+  const cand=[];
+  for(const p of S.phrases.phrases){
+    if(p.id===ph.id||p.ru===ph.ru)continue;
+    if(similarMeaning({translation:p.ru},{translation:ph.ru}))continue;
+    const dLen=Math.abs(p.ru.length-ph.ru.length);
+    const same=p.topic===ph.topic&&p.level===ph.level;
+    const cf=Math.min(conf[p.id]||0,3);
+    cand.push({v:p.ru,r:p.id,same,score:dLen*0.5-(same?8:0)-cf*8+Math.random()*4});
+  }
+  cand.sort((a,b)=>a.score-b.score);
+  const out=cand.slice(0,n);
+  if(out.length>=2&&!out.some(c=>c.same)){
+    const c=cand.find(x=>x.same&&!out.includes(x));
+    if(c)out[out.length-1]=c;
+  }
+  return out.map(c=>({v:c.v,r:c.r}));
+}
+function pTiles(ph){
+  /* плитки: слова фразы + 2-3 ложных из фраз той же темы (без пунктуации, без дублей) */
+  const clean=w=>w.replace(/[.,!?«»:;]/g,'');
+  const words=ph.ky.split(' ');
+  const wset=new Set(words.map(w=>clean(w).toLowerCase()));
+  const decoyPool=[];
+  for(const p of S.phrases.phrases){
+    if(p.id===ph.id||p.topic!==ph.topic)continue;
+    for(let w of p.ky.split(' ')){
+      w=clean(w);
+      if(w.length>1&&!wset.has(w.toLowerCase()))decoyPool.push(w);
+    }
+  }
+  const decoys=shuffle([...new Set(decoyPool)]).slice(0,Math.min(3,Math.max(2,Math.floor(words.length/2))));
+  return {words,tiles:shuffle([...words,...decoys])};
+}
+function buildPTasks(pids,withIntro){
+  const tasks=[];
+  for(const id of pids){ if(!S.byPid[id])continue;
+    if(withIntro&&!S.srs[id])tasks.push({type:'pintro',r:id});
+    tasks.push({type:'pky2ru',r:id});
+  }
+  for(const id of shuffle([...pids]))if(S.byPid[id]){
+    const ph=S.byPid[id];
+    if(ph.ky.split(' ').length<=9)tasks.push({type:'pbuild',r:id});
+    else tasks.push({type:'pky2ru',r:id});
+  }
+  return tasks;
+}
+
 /* ---------- Урок / повторение ---------- */
 function lessonScreen(unit,lesson){
   runSession(buildTasks(lesson.word_ranks,true),async results=>{
@@ -656,9 +791,20 @@ function lessonScreen(unit,lesson){
     await finishSession(results,first?10:5);
   });
 }
+function pLessonScreen(unit,lesson){
+  runSession(buildPTasks(lesson.phrase_ids,true),async results=>{
+    const first=!S.doneLessons[lesson.id];
+    S.doneLessons[lesson.id]=true;
+    await kvSet('doneLessons',S.doneLessons);
+    await finishSession(results,first?10:5);
+  });
+}
 function reviewScreen(){
-  const ranks=shuffle(dueRanks()).slice(0,7);
-  runSession(buildTasks(ranks,false),async results=>{
+  const due=shuffle(dueRanks());
+  const wr=due.filter(r=>r<PID0).slice(0,5);
+  const pr=due.filter(r=>r>PID0).slice(0,3);
+  const tasks=[...buildTasks(wr,false),...buildPTasks(pr,false)];
+  runSession(tasks,async results=>{
     await finishSession(results,5);
   });
 }
@@ -772,6 +918,70 @@ function runSession(tasks,onDone){
       return;
     }
 
+    /* -- фразы -- */
+    if(t.type==='pintro'||t.type==='pky2ru'||t.type==='pbuild'){
+      const ph=S.byPid[t.r];
+      if(t.type==='pintro'){
+        errors[t.r]=errors[t.r]||0;
+        ex.innerHTML=`<p class="prompt">Новая фраза</p>
+          <div class="wordcard">
+          <div class="ruword" style="font-size:24px">${esc(ph.ky)}</div>
+          <div class="tr">${esc(ph.ru)}</div>
+          <div><span class="topic-pill">${esc(ph.topic)}</span></div></div>
+          <button class="btn" id="ok">Понятно</button>`;
+        $('#ok').onclick=()=>{done+=1;bump();queue.shift();next();};
+        return;
+      }
+      if(t.type==='pky2ru'){
+        const opts=shuffle([{v:ph.ru,r:ph.id},...pdistract(ph,3)]);
+        ex.innerHTML=`<p class="prompt">Выбери перевод</p>
+          <div class="ruword" style="font-size:22px">${esc(ph.ky)}</div>
+          ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
+        document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+          const ok=+b.dataset.r===ph.id;
+          b.classList.add(ok?'ok':'bad');
+          if(ok)b.classList.add('pop');
+          if(!ok){
+            document.querySelectorAll('.opt').forEach(x=>{
+              if(+x.dataset.r===ph.id)x.classList.add('ok');});
+            const cr=+b.dataset.r;
+            if(cr){const m=S.confus[t.r]=S.confus[t.r]||{};
+              m[cr]=(m[cr]||0)+1; kvSet('confus',S.confus);}
+          }
+          document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
+          finishTask(ok, ok?null:`${esc(ph.ky)} — ${esc(ph.ru)}`);});
+        return;
+      }
+      /* pbuild: собери фразу из плиток */
+      const {words,tiles}=pTiles(ph);
+      const picked=[];
+      ex.innerHTML=`<p class="prompt">Собери фразу по-кыргызски</p>
+        <div class="ruword">${esc(ph.ru)}</div>
+        <div class="answer" id="ans"></div>
+        <div class="tiles" id="tiles">${tiles.map((w,i)=>
+          `<button class="tile" data-i="${i}">${esc(w)}</button>`).join('')}</div>
+        <button class="btn" id="check" disabled>Проверить</button>`;
+      const redraw=()=>{
+        $('#ans').innerHTML=picked.map(i=>
+          `<button class="tile" data-p="${i}">${esc(tiles[i])}</button>`).join('');
+        document.querySelectorAll('#tiles .tile').forEach(b=>
+          b.classList.toggle('used',picked.includes(+b.dataset.i)));
+        $('#check').disabled=picked.length===0;
+        document.querySelectorAll('#ans .tile').forEach(b=>b.onclick=()=>{
+          picked.splice(picked.indexOf(+b.dataset.p),1); redraw();});
+      };
+      document.querySelectorAll('#tiles .tile').forEach(b=>b.onclick=()=>{
+        if(!picked.includes(+b.dataset.i)){picked.push(+b.dataset.i); redraw();}});
+      $('#check').onclick=()=>{
+        const got=picked.map(i=>tiles[i]).join(' ');
+        const norm=s=>s.toLowerCase().replace(/[.,!?«»]/g,'').replace(/\s+/g,' ').trim();
+        const ok=norm(got)===norm(ph.ky);
+        $('#check').disabled=true;
+        document.querySelectorAll('.tile').forEach(x=>x.disabled=true);
+        finishTask(ok, ok?null:`Правильно: <b>${esc(ph.ky)}</b>`);};
+      return;
+    }
+
     const w=S.byRank[t.r];
 
     /* -- intro -- */
@@ -879,7 +1089,7 @@ function confetti(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.2-ui+dist2 2026-07-05 — дистракторы v2: тема, adaptive-путаница, фильтр двусмысленности */
+/* build: v0.3-levels 2026-07-05 — 3 уровня: слова / фразы (2-4 слова) / предложения (5+); банк 454 пары (Исаев 1988 OCR + Tatoeba); упражнения: pintro/pky2ru/pbuild (плитки) */
 </script>
 </body>
 </html>
