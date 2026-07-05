@@ -275,7 +275,7 @@ function srsAll(){return new Promise((res,rej)=>{
   c.onerror=()=>rej(c.error);});}
 
 /* ---------- Состояние ---------- */
-let S={user:null, wordbank:null, course:null, byRank:{}, srs:{},
+let S={user:null, wordbank:null, course:null, byRank:{}, topicByRank:{}, srs:{}, confus:{},
   streak:{count:0,last:null,freezes:2}, xp:0, goal:1, doneToday:0, doneLessons:{}};
 
 const $=s=>document.querySelector(s);
@@ -302,6 +302,7 @@ async function loadMeta(){
   S.xp=await kvGet('xp')||0;
   S.goal=await kvGet('goal')||2;
   S.doneLessons=await kvGet('doneLessons')||{};
+  S.confus=await kvGet('confus')||{};
   const dt=await kvGet('doneToday')||{d:null,n:0};
   S.doneToday=(dt.d===today())?dt.n:0;
   const st=S.streak;
@@ -377,6 +378,9 @@ async function migrateDone(){
 function index(){
   S.byRank={};
   for(const w of S.wordbank.words) S.byRank[w.freq_rank]=w;
+  S.topicByRank={};
+  if(S.course)for(const u of S.course.units)for(const w of u.words)
+    S.topicByRank[w.freq_rank]=w.topic||u.topic||'';
 }
 
 /* ---------- Маскот: суур ---------- */
@@ -576,30 +580,54 @@ function home(){
 }
 
 /* ---------- Генерация упражнений ---------- */
+/* пересечение переводов: если у кандидата и цели есть общий значимый токен
+   (или общий корень длинных слов), оба варианта могут быть «верными» — исключаем */
+function trTokens(w){return shortTr(w).toLowerCase().split(/[^а-яёa-z]+/i)
+  .filter(t=>t.length>=3);}
+function similarMeaning(a,b){
+  const A=trTokens(a),B=trTokens(b);
+  return A.some(x=>B.some(y=>x===y||(x.length>=5&&y.length>=5&&x.slice(0,4)===y.slice(0,4))));}
+
 function distractors(word,n,field){
-  /* дистракторы подбираются близкими по длине и числу слов к правильному ответу,
-     чтобы верный вариант не выделялся визуально */
+  /* принципы (best practices MCQ-дистракторов):
+     1) близки к ответу по длине/числу слов — верный вариант не выделяется визуально;
+     2) ≥1 из той же темы — семантическая близость полезнее случайных слов;
+     3) слова, которые раньше путались с этим (S.confus), приходят чаще — adaptive;
+     4) кандидаты с пересекающимся переводом исключены — не бывает двух верных;
+     5) ≥1 уже изученное слово — скрытое повторение.
+     Возвращает [{v,r}] — текст и freq_rank (rank нужен для учёта путаницы). */
   const ansV=field==='word'?word.word:shortTr(word);
+  const topic=S.topicByRank[word.freq_rank]||'';
+  const conf=S.confus[word.freq_rank]||{};
   const used=new Set([ansV]);
   const cand=[];
   for(const w of S.wordbank.words){
     if(w.freq_rank===word.freq_rank)continue;
     const v=field==='word'?w.word:shortTr(w);
     if(used.has(v))continue;
+    if(similarMeaning(w,word))continue;
     used.add(v);
     const dLen=Math.abs(v.length-ansV.length);
     const dWords=Math.abs(v.split(/\s+/).length-ansV.split(/\s+/).length);
     const seen=!!(S.srs[w.freq_rank]&&S.srs[w.freq_rank].seen>0);
-    cand.push({v,seen,score:dLen+dWords*6+Math.random()*4});
+    const same=!!topic&&S.topicByRank[w.freq_rank]===topic;
+    const cf=Math.min(conf[w.freq_rank]||0,3);
+    cand.push({v,r:w.freq_rank,seen,same,
+      score:dLen+dWords*6-(same?7:0)-cf*8+Math.random()*4});
   }
   cand.sort((a,b)=>a.score-b.score);
   const out=cand.slice(0,n);
-  /* хотя бы 1 уже изученное слово среди дистракторов */
-  if(n>0&&!out.some(c=>c.seen)){
-    const s=cand.find(c=>c.seen&&!out.includes(c));
-    if(s)out[out.length-1]=s;
+  /* гарантия: ≥1 из той же темы (если тема есть и кандидаты нашлись) */
+  if(out.length>=2&&!out.some(c=>c.same)){
+    const c=cand.find(x=>x.same&&!out.includes(x));
+    if(c)out[out.length-1]=c;
   }
-  return out.map(c=>c.v);}
+  /* гарантия: ≥1 уже изученное (не затирая единственный тематический слот) */
+  if(out.length&&!out.some(c=>c.seen)){
+    const c=cand.find(x=>x.seen&&!out.includes(x));
+    if(c){let i=out.findIndex(o=>!o.same); if(i<0)i=0; out[i]=c;}
+  }
+  return out.map(c=>({v:c.v,r:c.r}));}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));
   [a[i],a[j]]=[a[j],a[i]];}return a;}
 
@@ -765,17 +793,22 @@ function runSession(tasks,onDone){
       const q=t.type==='ky2ru'?w.word:shortTr(w);
       const ans=t.type==='ky2ru'?shortTr(w):w.word;
       const field=t.type==='ky2ru'?'tr':'word';
-      const opts=shuffle([ans,...distractors(w,3,field==='word'?'word':'tr')]);
+      const opts=shuffle([{v:ans,r:w.freq_rank},...distractors(w,3,field==='word'?'word':'tr')]);
       ex.innerHTML=`<p class="prompt">${t.type==='ky2ru'?'Выбери перевод':'Выбери кыргызское слово'}</p>
         <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${esc(q)}</div>
-        ${opts.map(o=>`<button class="opt">${esc(o)}</button>`).join('')}`;
+        ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
       document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
-        const ok=b.textContent===ans;
+        const ok=+b.dataset.r===w.freq_rank;
         b.classList.add(ok?'ok':'bad');
         if(ok)b.classList.add('pop');
         if(!ok){
           document.querySelectorAll('.opt').forEach(x=>{
-            if(x.textContent===ans)x.classList.add('ok');});}
+            if(+x.dataset.r===w.freq_rank)x.classList.add('ok');});
+          /* запомнить, с чем перепутал — это слово будет чаще приходить дистрактором */
+          const cr=+b.dataset.r;
+          if(cr){const m=S.confus[t.r]=S.confus[t.r]||{};
+            m[cr]=(m[cr]||0)+1; kvSet('confus',S.confus);}
+        }
         document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
         finishTask(ok, ok?null:`${esc(w.word)} — ${esc(shortTr(w))}`);});
       return;
@@ -807,11 +840,7 @@ function runSession(tasks,onDone){
   }
   next();
 }
-function findTopic(r){
-  for(const u of S.course.units)
-    for(const w of u.words)
-      if(w.freq_rank===r)return w.topic;
-  return '';}
+function findTopic(r){return S.topicByRank[r]||'';}
 
 /* ---------- Конфетти ---------- */
 function confetti(){
@@ -850,7 +879,7 @@ function confetti(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.2-ui+nav2 2026-07-04 — категории-темы (курс v2), школьная лексика, миграция прогресса из SRS */
+/* build: v0.2-ui+dist2 2026-07-05 — дистракторы v2: тема, adaptive-путаница, фильтр двусмысленности */
 </script>
 </body>
 </html>
