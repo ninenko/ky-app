@@ -655,7 +655,7 @@ function home(){
   if(UI.lvl===1&&nxt)$('#cont').onclick=()=>open(nxt.u.id,nxt.l.id);
   if(UI.lvl>1&&nxtP)$('#contp').onclick=()=>openP(nxtP.u.id,nxtP.l.id);
   const rv=$('#review'); if(rv)rv.onclick=()=>render(reviewScreen);
-  $('#goal').onchange=async e=>{S.goal=+e.target.value; await kvSet('goal',S.goal);};
+  $('#goal').onchange=async e=>{S.goal=+e.target.value; await kvSet('goal',S.goal); syncPush();};
   $('#logout').onclick=e=>{e.preventDefault();
     firebase.auth().signOut().then(()=>location.reload());};
   const curEl=document.querySelector('.node.cur');
@@ -820,6 +820,7 @@ async function finishSession(results,baseXP){
   if(perfect) xp+=5;
   S.xp+=xp; await kvSet('xp',S.xp);
   const newDay=await registerActivity();
+  syncPush(); // прогресс в облако после каждого урока (fire-and-forget)
   const acc=total?Math.round(100*correct/total):100;
   confetti();
   const goalHit=S.doneToday===S.goal;
@@ -1075,6 +1076,63 @@ function confetti(){
   })();
 }
 
+/* ---------- Sync прогресса: local-first, RTDB progress/<uid> ---------- */
+/* Ключи srs/confus числовые -> префикс 'r', иначе RTDB превратит объект в гигантский массив */
+function encProg(){
+  const srs={},conf={};
+  for(const[k,v]of Object.entries(S.srs))srs['r'+k]=v;
+  for(const[k,v]of Object.entries(S.confus)){
+    const o={};for(const[k2,c]of Object.entries(v))o['r'+k2]=c;conf['r'+k]=o;}
+  return {updated:Date.now(),xp:S.xp,goal:S.goal,streak:S.streak,
+    doneToday:{d:today(),n:S.doneToday},doneLessons:S.doneLessons,srs,confus:conf};
+}
+let syncBusy=false;
+async function syncPush(){
+  if(!S.user||syncBusy)return;
+  syncBusy=true;
+  try{await firebase.database().ref('progress/'+S.user.uid).set(encProg());}
+  catch(e){/* оффлайн — локальный прогресс главный, дольёмся позже */}
+  syncBusy=false;
+}
+async function syncPull(){
+  if(!S.user)return;
+  try{
+    const snap=await firebase.database().ref('progress/'+S.user.uid).get();
+    if(!snap.exists()){await syncPush();return;}
+    const R=snap.val(); let ch=false;
+    /* SRS: на каждый ключ берём запись с бОльшим seen (при равных — более поздний due) */
+    for(const[rk,v]of Object.entries(R.srs||{})){
+      const k=rk.slice(1), l=S.srs[k];
+      if(!l||v.seen>l.seen||(v.seen===l.seen&&(v.due||'')>(l.due||''))){
+        if(!l||JSON.stringify(l)!==JSON.stringify(v)){S.srs[k]=v; await kvSet(k,v,'srs'); ch=true;}
+      }
+    }
+    if((R.xp||0)>S.xp){S.xp=R.xp; await kvSet('xp',S.xp); ch=true;}
+    const rs=R.streak;
+    if(rs&&rs.last&&(!S.streak.last||rs.last>S.streak.last||
+       (rs.last===S.streak.last&&rs.count>S.streak.count))){
+      S.streak=rs; await kvSet('streak',S.streak); ch=true;}
+    const rdt=R.doneToday;
+    if(rdt&&rdt.d===today()&&rdt.n>S.doneToday){
+      S.doneToday=rdt.n; await kvSet('doneToday',{d:today(),n:S.doneToday}); ch=true;}
+    let dlCh=false;
+    for(const k of Object.keys(R.doneLessons||{}))
+      if(!S.doneLessons[k]){S.doneLessons[k]=true; dlCh=true;}
+    if(dlCh){await kvSet('doneLessons',S.doneLessons); ch=true;}
+    let cfCh=false;
+    for(const[rk,o]of Object.entries(R.confus||{})){
+      const k=rk.slice(1); S.confus[k]=S.confus[k]||{};
+      for(const[rk2,c]of Object.entries(o||{})){
+        const k2=rk2.slice(1);
+        if((S.confus[k][k2]||0)<c){S.confus[k][k2]=c; cfCh=true;}
+      }
+    }
+    if(cfCh){await kvSet('confus',S.confus); ch=true;}
+    if(ch)toast('☁️ Прогресс синхронизирован');
+    await syncPush(); // записываем результат слияния
+  }catch(e){/* оффлайн — работаем локально */}
+}
+
 /* ---------- Запуск ---------- */
 (async function(){
   idb=await idbOpen();
@@ -1084,12 +1142,14 @@ function confetti(){
     S.user=u;
     app.innerHTML=`<div class="center" style="padding-top:30vh">Загружаю курс…</div>`;
     S.srs=await srsAll();
+    await syncPull();
     await loadContent();
+    syncPush(); // migrateDone мог дополнить doneLessons
   });
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.3-levels 2026-07-05 — 3 уровня: слова / фразы (2-4 слова) / предложения (5+); банк 454 пары (Исаев 1988 OCR + Tatoeba); упражнения: pintro/pky2ru/pbuild (плитки) */
+/* build: v0.3.1-sync 2026-07-05 — RTDB sync прогресса: progress/<uid>, local-first, merge по seen/датам, push после урока */
 </script>
 </body>
 </html>
