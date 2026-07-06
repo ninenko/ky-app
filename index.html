@@ -117,6 +117,11 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
   background:none; border:0; padding:2px; cursor:pointer; color:var(--text)}
 .stat .ic{font-size:20px}
 .streak-c{color:#ff9600} .xp-c{color:var(--yellow-dk)} .frz-c{color:var(--blue)}
+/* ---- аудио ---- */
+.spk{display:inline-block;border:0;background:none;font-size:22px;cursor:pointer;
+  padding:2px 6px;vertical-align:middle;line-height:1;transition:transform .1s}
+.spk:active{transform:scale(1.3)}
+
 /* ---- мои слова ---- */
 .wtop{display:flex;align-items:center;gap:10px;margin:12px 0}
 .wback{border:0;background:var(--panel);border-radius:12px;width:40px;height:40px;
@@ -299,13 +304,14 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 
 /* ---------- IndexedDB ---------- */
-const DB_NAME='kyapp', DB_VER=1;
+const DB_NAME='kyapp', DB_VER=2;
 let idb;
 function idbOpen(){return new Promise((res,rej)=>{
   const r=indexedDB.open(DB_NAME,DB_VER);
   r.onupgradeneeded=()=>{const d=r.result;
     if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');
-    if(!d.objectStoreNames.contains('srs'))d.createObjectStore('srs');};
+    if(!d.objectStoreNames.contains('srs'))d.createObjectStore('srs');
+    if(!d.objectStoreNames.contains('audio'))d.createObjectStore('audio');};
   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
 function kvGet(k,store='kv'){return new Promise((res,rej)=>{
   const t=idb.transaction(store).objectStore(store).get(k);
@@ -334,6 +340,34 @@ function shortTr(w){ // основной перевод: часть до ';'
   let t=(w.translation||'').split(';')[0].trim();
   if(t.length>42){t=t.slice(0,42).replace(/[,\s]+\S*$/,'')+'…';}
   return t||w.translation;}
+
+/* ---------- Аудио: RTDB audio/w|p, кэш в IndexedDB ---------- */
+let curAud=null;
+async function getAudio(r){
+  let b=null;
+  try{b=await kvGet(String(r),'audio');}catch(e){}
+  if(!b){
+    try{
+      const snap=await firebase.database().ref((+r<PID0?'audio/w/r':'audio/p/r')+r).get();
+      if(!snap.exists())return null;
+      b=snap.val(); kvSet(String(r),b,'audio');
+    }catch(e){return null;}
+  }
+  return b;
+}
+async function playAudio(r){
+  const b=await getAudio(r); if(!b)return;
+  try{
+    if(curAud){curAud.pause();curAud=null;}
+    curAud=new Audio('data:audio/mpeg;base64,'+b);
+    curAud.play().catch(()=>{});
+  }catch(e){}
+}
+function prefetchAudio(rs){for(const r of rs)getAudio(r);}
+document.addEventListener('click',e=>{
+  const s=e.target.closest('[data-spk]');
+  if(s){e.stopPropagation();e.preventDefault();playAudio(+s.dataset.spk);}
+},true);
 
 /* ---------- Уровни ---------- */
 const LEVELS=[[0,'Баштоочу 🌱'],[100,'Окуучу 📖'],[300,'Билгич 💡'],[700,'Чебер 🔨'],
@@ -863,6 +897,7 @@ function wordsScreen(){
       <div class="grow"><div class="wky">${esc(it.ky)}</div>
       <div class="wru small">${esc(U.tab==='w'?shortTr({translation:it.ru}):it.ru)}</div>
       <div class="wdet small" hidden></div></div>
+      <span class="spk" data-spk="${it.r}">🔊</span>
       <div class="wst"><span>${ic}</span><div class="wbar"><div style="width:${pct}%"></div></div></div>
     </button>`;}).join('')+`</div>`;
   app.innerHTML=html;
@@ -952,6 +987,7 @@ function dayWord(n){const m=n%10,h=n%100;
 
 /* ---------- Сессия ---------- */
 function runSession(tasks,onDone){
+  prefetchAudio([...new Set(tasks.flatMap(t=>t.ranks||(t.r?[t.r]:[])))]);
   const queue=[...tasks];
   const errors={};
   let total=queue.length, done=0, combo=0;
@@ -1015,6 +1051,7 @@ function runSession(tasks,onDone){
           if(sel)sel.classList.remove('sel');
           sel=b; b.classList.add('sel'); return;}
         if(sel.dataset.k===b.dataset.k){
+          playAudio(+b.dataset.k);
           sel.classList.remove('sel'); sel.classList.add('done'); b.classList.add('done');
           sel=null; left-=1;
           if(!left){
@@ -1036,9 +1073,10 @@ function runSession(tasks,onDone){
       const ph=S.byPid[t.r];
       if(t.type==='pintro'){
         errors[t.r]=errors[t.r]||0;
+        playAudio(ph.id);
         ex.innerHTML=`<p class="prompt">Новая фраза</p>
           <div class="wordcard">
-          <div class="ruword" style="font-size:24px">${esc(ph.ky)}</div>
+          <div class="ruword" style="font-size:24px">${esc(ph.ky)} <span class="spk" data-spk="${ph.id}">🔊</span></div>
           <div class="tr">${esc(ph.ru)}</div>
           <div><span class="topic-pill">${esc(ph.topic)}</span></div></div>
           <button class="btn" id="ok">Понятно</button>`;
@@ -1047,8 +1085,9 @@ function runSession(tasks,onDone){
       }
       if(t.type==='pky2ru'){
         const opts=shuffle([{v:ph.ru,r:ph.id},...pdistract(ph,3)]);
+        playAudio(ph.id);
         ex.innerHTML=`<p class="prompt">Выбери перевод</p>
-          <div class="ruword" style="font-size:22px">${esc(ph.ky)}</div>
+          <div class="ruword" style="font-size:22px">${esc(ph.ky)} <span class="spk" data-spk="${ph.id}">🔊</span></div>
           ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
         document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
           const ok=+b.dataset.r===ph.id;
@@ -1089,6 +1128,7 @@ function runSession(tasks,onDone){
         const got=picked.map(i=>tiles[i]).join(' ');
         const norm=s=>s.toLowerCase().replace(/[.,!?«»]/g,'').replace(/\s+/g,' ').trim();
         const ok=norm(got)===norm(ph.ky);
+        playAudio(ph.id);
         $('#check').disabled=true;
         document.querySelectorAll('.tile').forEach(x=>x.disabled=true);
         finishTask(ok, ok?null:`Правильно: <b>${esc(ph.ky)}</b>`);};
@@ -1100,9 +1140,10 @@ function runSession(tasks,onDone){
     /* -- intro -- */
     if(t.type==='intro'){
       errors[t.r]=errors[t.r]||0;
+      playAudio(w.freq_rank);
       ex.innerHTML=`<p class="prompt">Новое слово</p>
         <div class="wordcard">
-        <div class="kyword">${esc(w.word)}</div>
+        <div class="kyword">${esc(w.word)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
         <div class="tr">${esc(w.translation)}</div>
         ${w.translation2?`<div class="also">также: ${esc(w.translation2)}</div>`:''}
         ${findTopic(t.r)?`<div><span class="topic-pill">${esc(findTopic(t.r))}</span></div>`:''}</div>
@@ -1118,8 +1159,9 @@ function runSession(tasks,onDone){
       const field=t.type==='ky2ru'?'tr':'word';
       const opts=shuffle([{v:ans,r:w.freq_rank},...distractors(w,3,field==='word'?'word':'tr')]);
       ex.innerHTML=`<p class="prompt">${t.type==='ky2ru'?'Выбери перевод':'Выбери кыргызское слово'}</p>
-        <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${esc(q)}</div>
+        <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${esc(q)}${t.type==='ky2ru'?` <span class="spk" data-spk="${w.freq_rank}">🔊</span>`:''}</div>
         ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
+      if(t.type==='ky2ru')playAudio(w.freq_rank);
       document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
         const ok=+b.dataset.r===w.freq_rank;
         b.classList.add(ok?'ok':'bad');
@@ -1133,6 +1175,7 @@ function runSession(tasks,onDone){
             m[cr]=(m[cr]||0)+1; kvSet('confus',S.confus);}
         }
         document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
+        if(t.type==='ru2ky')playAudio(w.freq_rank);
         finishTask(ok, ok?null:`${esc(w.word)} — ${esc(shortTr(w))}`);});
       return;
     }
@@ -1154,6 +1197,7 @@ function runSession(tasks,onDone){
         if(!inp.value.trim())return;
         const norm=s=>s.toLowerCase().replace(/ё/g,'е').trim().replace(/\s+/g,' ');
         const ok=norm(inp.value)===norm(w.word);
+        playAudio(w.freq_rank);
         $('#check').disabled=true; inp.disabled=true;
         finishTask(ok, ok?null:`Правильно: <b>${esc(w.word)}</b>`);};
       $('#check').onclick=check;
@@ -1201,6 +1245,7 @@ function showAbout(){
   <p class="small">Личное приложение для изучения кыргызского языка (на базе русского). Его построил Иван вместе с ИИ-ассистентом Claude (Anthropic): Claude собирал и вычищал языковые данные, писал код, курировал переводы; Иван ставил задачи, принимал решения и проверял результат.</p>
   <p class="small"><b>Данные</b> — из источников, открыто доступных в сети: словарь Tilchi (открытый код), частотные списки на основе корпуса новостей «Азаттык» (RFE/RL) и Mozilla Common Voice (CC0), предложения Tatoeba (CC-BY), самоучитель Исаева и Шнейдмана (1988), официальная терминология школьной реформы КР, академические тексты по педагогике.</p>
   <p class="small"><b>Честное предупреждение:</b> переводы и темы курированы ИИ и не проверены носителем языка — неточности возможны. Считай приложение тренажёром, а не эталоном.</p>
+  <p class="small"><b>Озвучка:</b> синтезированная (AkylAI TTS — кыргызская модель на базе MMS-VITS; 11 слов — живые записи Mozilla Common Voice). Произношение может слегка отличаться от живой речи. Подсказка: ударение в кыргызском почти всегда падает на последний слог.</p>
   <p class="small"><b>Механики:</b> интервальное повторение (SM-2), три уровня (слова · фразы · предложения), XP, стрики и маскот-сурок Суур. Некоммерческий проект для личного обучения.</p>
   <button class="btn" id="mclose">Понятно</button>`);
   d.querySelector('#mclose').onclick=()=>d.remove();
@@ -1297,7 +1342,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
