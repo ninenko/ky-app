@@ -118,6 +118,10 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
   background:none; border:0; padding:2px; cursor:pointer; color:var(--text)}
 .stat .ic{font-size:20px}
 .streak-c{color:#ff9600} .xp-c{color:var(--yellow-dk)} .frz-c{color:var(--blue)}
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+.mcard{background:var(--bg);border-radius:var(--r);padding:20px;max-width:440px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.mcard h3{margin:0 0 10px}
+.mcard p{margin:8px 0;line-height:1.45}
 .goalring{width:26px; height:26px; transform:rotate(-90deg)}
 .goalring circle{fill:none; stroke-width:4}
 .goalring .bgc{stroke:var(--line)}
@@ -296,7 +300,7 @@ function srsAll(){return new Promise((res,rej)=>{
 /* ---------- Состояние ---------- */
 let S={user:null, wordbank:null, course:null, byRank:{}, topicByRank:{}, srs:{}, confus:{},
   phrases:null, byPid:{}, pcourse:null,
-  streak:{count:0,last:null,freezes:2}, xp:0, goal:1, doneToday:0, doneLessons:{}};
+  streak:{count:0,last:null,freezes:2}, xp:0, goal:1, doneToday:0, doneLessons:{}, settings:null};
 const PID0=20000; // id фраз начинаются с 20001 — не пересекаются с freq_rank слов
 
 const $=s=>document.querySelector(s);
@@ -322,6 +326,7 @@ async function loadMeta(){
   S.streak=await kvGet('streak')||{count:0,last:null,freezes:2};
   S.xp=await kvGet('xp')||0;
   S.goal=await kvGet('goal')||2;
+  S.settings=await kvGet('settings')||null;
   S.doneLessons=await kvGet('doneLessons')||{};
   S.confus=await kvGet('confus')||{};
   const dt=await kvGet('doneToday')||{d:null,n:0};
@@ -621,7 +626,7 @@ function home(){
 
   html+=`<div class="footer">Цель дня: <select id="goal">${[1,2,3,4,5].map(n=>
       `<option ${n===S.goal?'selected':''}>${n}</option>`).join('')}</select> урок(а)
-    · <a href="#" id="logout">выйти</a><br><br>
+    · <a href="#" id="about">о приложении</a> · <a href="#" id="remind">✉️ письма Суура</a> · <a href="#" id="logout">выйти</a><br><br>
     Переводы и темы составлены с помощью ИИ по словарям, учебникам и частотным спискам —
     возможны неточности. Фразы: самоучитель Исаева/Шнейдмана (1988), Tatoeba.</div>`;
   app.innerHTML=html;
@@ -662,6 +667,8 @@ function home(){
   $('#goal').onchange=async e=>{S.goal=+e.target.value; await kvSet('goal',S.goal); syncPush();};
   $('#logout').onclick=e=>{e.preventDefault();
     firebase.auth().signOut().then(()=>location.reload());};
+  $('#about').onclick=e=>{e.preventDefault();showAbout();};
+  $('#remind').onclick=e=>{e.preventDefault();showRemind();};
   const curEl=document.querySelector('.node.cur');
   if(curEl&&curEl.getBoundingClientRect().top>window.innerHeight*0.7)
     curEl.scrollIntoView({block:'center'});
@@ -1087,6 +1094,41 @@ function confetti(){
   })();
 }
 
+/* ---------- Модалки: о приложении / письма Суура ---------- */
+function showModal(html){
+  const d=document.createElement('div'); d.className='ovl';
+  d.innerHTML=`<div class="mcard">${html}</div>`;
+  document.body.appendChild(d);
+  d.onclick=e=>{if(e.target===d)d.remove();};
+  return d;
+}
+function showAbout(){
+  const d=showModal(`<h3>🐹 Ky App — о приложении</h3>
+  <p class="small">Личное приложение для изучения кыргызского языка (на базе русского). Его построил Иван вместе с ИИ-ассистентом Claude (Anthropic): Claude собирал и вычищал языковые данные, писал код, курировал переводы; Иван ставил задачи, принимал решения и проверял результат.</p>
+  <p class="small"><b>Данные</b> — из источников, открыто доступных в сети: словарь Tilchi (открытый код), частотные списки на основе корпуса новостей «Азаттык» (RFE/RL) и Mozilla Common Voice (CC0), предложения Tatoeba (CC-BY), самоучитель Исаева и Шнейдмана (1988), официальная терминология школьной реформы КР, академические тексты по педагогике.</p>
+  <p class="small"><b>Честное предупреждение:</b> переводы и темы курированы ИИ и не проверены носителем языка — неточности возможны. Считай приложение тренажёром, а не эталоном.</p>
+  <p class="small"><b>Механики:</b> интервальное повторение (SM-2), три уровня (слова · фразы · предложения), XP, стрики и маскот-сурок Суур. Некоммерческий проект для личного обучения.</p>
+  <button class="btn" id="mclose">Понятно</button>`);
+  d.querySelector('#mclose').onclick=()=>d.remove();
+}
+function showRemind(){
+  const st=S.settings||{email:(S.user&&S.user.email)||'',reminders:false};
+  const d=showModal(`<h3>✉️ Письма от Суура</h3>
+  <p class="small">Пропустил день — вечером (~20:00 по Бишкеку) Суур напомнит письмом. По воскресеньям пришлёт отчёт о прогрессе за неделю. Занимался — ежедневное письмо не приходит.</p>
+  <label class="small" style="display:flex;gap:8px;align-items:center;margin:12px 0">
+    <input type="checkbox" id="remOn" ${st.reminders?'checked':''}> Получать письма</label>
+  <input type="email" id="remMail" value="${esc(st.email||'')}" placeholder="твой email"
+    style="width:100%;box-sizing:border-box;padding:10px;border:2px solid var(--line);border-radius:10px;font:inherit">
+  <br><br><button class="btn" id="remSave">Сохранить</button>`);
+  d.querySelector('#remSave').onclick=async()=>{
+    const em=d.querySelector('#remMail').value.trim();
+    const on=d.querySelector('#remOn').checked;
+    if(on&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast('Проверь email');return;}
+    S.settings={email:em,reminders:on};
+    await kvSet('settings',S.settings); syncPush();
+    toast(on?'✉️ Письма Суура включены':'Письма Суура выключены'); d.remove();};
+}
+
 /* ---------- Sync прогресса: local-first, RTDB progress/<uid> ---------- */
 /* Ключи srs/confus числовые -> префикс 'r', иначе RTDB превратит объект в гигантский массив */
 function encProg(){
@@ -1094,7 +1136,7 @@ function encProg(){
   for(const[k,v]of Object.entries(S.srs))srs['r'+k]=v;
   for(const[k,v]of Object.entries(S.confus)){
     const o={};for(const[k2,c]of Object.entries(v))o['r'+k2]=c;conf['r'+k]=o;}
-  return {updated:Date.now(),xp:S.xp,goal:S.goal,streak:S.streak,
+  return {updated:Date.now(),xp:S.xp,goal:S.goal,streak:S.streak,settings:S.settings||null,
     doneToday:{d:today(),n:S.doneToday},doneLessons:S.doneLessons,srs,confus:conf};
 }
 let syncBusy=false;
@@ -1139,6 +1181,7 @@ async function syncPull(){
       }
     }
     if(cfCh){await kvSet('confus',S.confus); ch=true;}
+    if(R.settings&&!S.settings){S.settings=R.settings; await kvSet('settings',S.settings); ch=true;}
     if(ch)toast('☁️ Прогресс синхронизирован');
     await syncPush(); // записываем результат слияния
   }catch(e){/* оффлайн — работаем локально */}
@@ -1160,7 +1203,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.3.2-srs 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v0.3.3-about 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
