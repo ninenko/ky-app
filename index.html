@@ -304,6 +304,9 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .footer{margin-top:34px; padding:16px; background:var(--panel); border-radius:var(--r);
   font-size:13px; color:var(--muted)}
 .footer a{color:var(--blue); font-weight:700; text-decoration:none}
+.footer .frow{margin-bottom:10px}
+.footer .flinks{display:flex; flex-wrap:wrap; gap:6px 14px; margin-bottom:10px}
+.footer .fnote{font-size:12px; opacity:.8; line-height:1.4}
 select{font:inherit; border:2px solid var(--line); border-radius:8px; padding:2px 6px}
 </style>
 </head>
@@ -719,11 +722,11 @@ function home(){
     if(open) html+=pPathHTML(u,nxtP);
   });
 
-  html+=`<div class="footer">Цель дня: <select id="goal">${[1,2,3,4,5].map(n=>
-      `<option ${n===S.goal?'selected':''}>${n}</option>`).join('')}</select> урок(а)
-    · <a href="#" id="gram">💡 грамматика</a> · <a href="#" id="about">о приложении</a> · <a href="#" id="remind">✉️ письма Суура</a> · <a href="#" id="logout">выйти</a><br><br>
-    Переводы и темы составлены с помощью ИИ по словарям, учебникам и частотным спискам —
-    возможны неточности. Фразы: самоучитель Исаева/Шнейдмана (1988), Tatoeba.</div>`;
+  html+=`<div class="footer">
+    <div class="frow">🎯 Цель дня: <select id="goal">${[1,2,3,4,5].map(n=>
+      `<option ${n===S.goal?'selected':''}>${n}</option>`).join('')}</select> урок(а)</div>
+    <div class="flinks"><a href="#" id="gram">💡 Грамматика</a><a href="#" id="remind">✉️ Письма Суура</a><a href="#" id="about">ℹ️ О приложении</a><a href="#" id="logout">Выйти</a></div>
+    <div class="fnote">Переводы и темы составлены с помощью ИИ по словарям, учебникам и частотным спискам — возможны неточности.</div></div>`;
   app.innerHTML=html;
 
   /* подсказки — только для иконок статбара */
@@ -1705,7 +1708,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
