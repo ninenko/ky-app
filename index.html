@@ -208,8 +208,11 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .acc.stage.open{border-color:var(--blue)}
 .acc.unit{margin-left:28px; border-radius:14px; padding:10px 12px; margin-top:10px}
 .acc.unit.open{border-color:var(--uc,var(--green))}
-.acc.fin{background:var(--green-bg); border-color:var(--green)}
-.acc.fin .sub{color:var(--green-dk)}
+.acc.go{background:#f3fbec; border-color:#b9e39a}
+.acc.fin{background:linear-gradient(135deg,#fff8dd,#f2ffd8); border-color:var(--yellow)}
+.acc.fin .sub{color:#b98a00}
+.acc.fin .miniprog>div{background:var(--yellow)}
+.acc .medal{font-size:22px; flex-shrink:0; animation:fbpop .35s}
 .miniprog{height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:6px}
 .miniprog>div{height:100%; background:var(--green); border-radius:4px}
 .path{margin:14px 0 6px}
@@ -664,22 +667,23 @@ function home(){
     const cd2=g.units.reduce((s,u)=>s+dnU(u),0), ct=g.units.reduce((s,u)=>s+u.lessons.length,0);
     const nw=g.units.reduce((s,u)=>s+u.words.length,0);
     const open=UI.cat===giCat;
-    html+=`<button class="acc part ${open?'open':''} ${cd2===ct?'fin':''}" data-c="${giCat}">
+    html+=`<button class="acc part ${open?'open':''} ${cd2===ct?'fin':cd2>0?'go':''}" data-c="${giCat}">
       <div class="grow"><div class="ttl">${CAT_ICONS[g.t]||'📁'} ${esc(g.t)}</div>
       <div class="sub">${nw} слов · ${cd2}/${ct} уроков</div>
       <div class="miniprog"><div style="width:${ct?100*cd2/ct:0}%"></div></div></div>
-      <span class="chev">▾</span></button>`;
+      ${cd2===ct?'<span class="medal">🏆</span>':''}<span class="chev">▾</span></button>`;
     if(!open)return;
     if(g.units.length===1){ html+=pathHTML(g.units[0],nxt); return; }
     g.units.forEach(u=>{
       const gi=S.course.units.indexOf(u);
       const ci=(u.id-1)%UNIT_COLORS.length, [c]=UNIT_COLORS[ci];
       const dN=dnU(u), uOpen=UI.unit===gi;
-      html+=`<button class="acc unit ${uOpen?'open':''} ${dN===u.lessons.length?'fin':''}" data-un="${gi}" style="--uc:${c}">
+      html+=`<button class="acc unit ${uOpen?'open':''} ${dN===u.lessons.length?'fin':dN>0?'go':''}" data-un="${gi}" style="--uc:${c}">
         <div class="num" style="background:${c}">${u.title.split(' ').pop()}</div>
         <div class="grow"><div class="ttl">${esc(u.title)}</div>
-        <div class="sub">${u.words.length} слов · ${dN}/${u.lessons.length} уроков</div></div>
-        <span class="chev">▾</span></button>`;
+        <div class="sub">${u.words.length} слов · ${dN}/${u.lessons.length} уроков</div>
+        <div class="miniprog"><div style="width:${u.lessons.length?100*dN/u.lessons.length:0}%"></div></div></div>
+        ${dN===u.lessons.length?'<span class="medal">🏆</span>':''}<span class="chev">▾</span></button>`;
       if(uOpen) html+=pathHTML(u,nxt);
     });
   });
@@ -688,11 +692,11 @@ function home(){
     const dN=dnU(u), ct=u.lessons.length;
     const ci=(u.id-1)%UNIT_COLORS.length, [c]=UNIT_COLORS[ci];
     const open=UI.cat===gi;
-    html+=`<button class="acc part ${open?'open':''} ${dN===ct?'fin':''}" data-c="${gi}" style="--uc:${c}">
+    html+=`<button class="acc part ${open?'open':''} ${dN===ct?'fin':dN>0?'go':''}" data-c="${gi}" style="--uc:${c}">
       <div class="grow"><div class="ttl">${PH_ICONS[u.topic]||'📁'} ${esc(u.title)}</div>
       <div class="sub">${u.phrase_ids.length} фраз · ${dN}/${ct} уроков</div>
       <div class="miniprog"><div style="width:${ct?100*dN/ct:0}%"></div></div></div>
-      <span class="chev">▾</span></button>`;
+      ${dN===ct?'<span class="medal">🏆</span>':''}<span class="chev">▾</span></button>`;
     if(open) html+=pPathHTML(u,nxtP);
   });
 
@@ -966,11 +970,11 @@ async function readingScreen(){
   D.units.forEach((u,gi)=>{
     const dn=u.pids.filter(p=>S.doneLessons['r'+p]).length, ct=u.pids.length;
     const open=RUI.u===gi;
-    html+=`<button class="acc part ${open?'open':''} ${dn===ct?'fin':''}" data-c="${gi}">
+    html+=`<button class="acc part ${open?'open':''} ${dn===ct?'fin':dn>0?'go':''}" data-c="${gi}">
       <div class="grow"><div class="ttl">📚 ${esc(u.title)}</div>
       <div class="sub">${dn}/${ct} текстов</div>
       <div class="miniprog"><div style="width:${ct?100*dn/ct:0}%"></div></div></div>
-      <span class="chev">▾</span></button>`;
+      ${dn===ct?'<span class="medal">🏆</span>':''}<span class="chev">▾</span></button>`;
     if(open)html+=`<div class="rgrid">`+u.pids.map((p,i)=>
       `<button class="rles ${S.doneLessons['r'+p]?'done':''}" data-p="${p}">${gi*10+i+1}</button>`).join('')+`</div>`;
   });
@@ -1490,7 +1494,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
