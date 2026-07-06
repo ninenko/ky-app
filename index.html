@@ -81,17 +81,16 @@ h1{font-size:24px; font-weight:800; margin:12px 0}
 @keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 .shake{animation:shake .4s}
 
-/* ---- фидбек-плашка снизу ---- */
-.fb{position:fixed; left:0; right:0; bottom:0; z-index:9;
-  padding:18px 16px calc(18px + env(safe-area-inset-bottom));
-  animation:slideup .25s cubic-bezier(.22,1,.36,1)}
+/* ---- фидбек-плашка: сразу под вопросом ---- */
+.fb{margin-top:14px; border-radius:var(--r); padding:14px 16px;
+  animation:fbpop .18s cubic-bezier(.22,1,.36,1)}
 .fb .in{max-width:520px; margin:0 auto}
 .fb.ok{background:var(--green-bg)} .fb.bad{background:var(--wrong-bg)}
 .fb .t{font-size:19px; font-weight:800; margin-bottom:2px}
 .fb.ok .t{color:var(--green-dk)} .fb.bad .t{color:var(--wrong-dk)}
 .fb .d{font-size:15px; color:var(--text); margin-bottom:12px}
-@keyframes slideup{from{transform:translateY(100%)}}
-.padfb{padding-bottom:170px}
+@keyframes fbpop{from{transform:translateY(8px); opacity:0}}
+.padfb{padding-bottom:40px}
 
 /* ---- ввод ---- */
 input[type=text]{width:100%; padding:14px; font:inherit; font-size:19px;
@@ -885,7 +884,9 @@ function runSession(tasks,onDone){
       <div style="flex:1"><div class="t">${ok?PRAISE[Math.floor(Math.random()*PRAISE.length)]:'Не совсем…'}</div>
       ${detail?`<div class="d">${detail}</div>`:''}
       <button class="btn ${ok?'':'red'}" id="fnext">Дальше</button></div></div>`;
-    document.body.appendChild(el);
+    const host=$('#ex')||document.body;
+    host.appendChild(el);
+    requestAnimationFrame(()=>el.scrollIntoView({block:'nearest',behavior:'smooth'}));
     $('#fnext').onclick=()=>{el.remove(); onNext();};
   }
 
@@ -1203,7 +1204,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.3.3-about 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
