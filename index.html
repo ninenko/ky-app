@@ -385,6 +385,7 @@ async function getAudio(r){
   return b;
 }
 async function playAudio(r){
+  if(S.mute)return;
   const b=await getAudio(r); if(!b)return;
   try{
     if(curAud){curAud.pause();curAud=null;}
@@ -414,6 +415,7 @@ async function loadMeta(){
   S.doneLessons=await kvGet('doneLessons')||{};
   S.confus=await kvGet('confus')||{};
   S.week=await kvGet('week')||null;
+  S.mute=await kvGet('mute')||false;
   S.tipN=await kvGet('tipn')||0;
   const dt=await kvGet('doneToday')||{d:null,n:0};
   S.doneToday=(dt.d===today())?dt.n:0;
@@ -656,6 +658,7 @@ function home(){
     <button class="stat frz-c" data-k="frz"><span class="ic">❄️</span>${S.streak.freezes}</button>
     <button class="stat xp-c" data-k="xp"><span class="ic">⚡</span>${S.xp}</button>
     <button class="stat" data-k="goal">${goalRing()}<span class="small muted">${S.doneToday}/${S.goal}</span></button>
+    <button class="stat" id="mutebtn" title="тихий режим"><span class="ic">${S.mute?'🔇':'🔊'}</span></button>
   </div>
   <div class="tipbox" id="tipbox" hidden></div>
   <div style="display:flex; align-items:center; gap:12px">
@@ -729,6 +732,9 @@ function home(){
     if(!tb.hidden&&tb.dataset.k===b.dataset.k){tb.hidden=true;return;}
     tb.textContent=tips[b.dataset.k]; tb.dataset.k=b.dataset.k; tb.hidden=false;});
   tb.onclick=()=>tb.hidden=true;
+  $('#mutebtn').onclick=async()=>{S.mute=!S.mute; await kvSet('mute',S.mute);
+    toast(S.mute?'🔇 Тихий режим: аудио выключено, уроки — без упражнений на слух':'🔊 Аудио включено');
+    home();};
 
   /* дерево */
   const keep=()=>{const y=scrollY; home(); requestAnimationFrame(()=>scrollTo(0,y));};
@@ -841,7 +847,7 @@ function buildTasks(ranks,withIntro){
   }
   const mr=ranks.filter(r=>S.byRank[r]);
   if(mr.length>=3)tasks.push({type:'match',ranks:mr.slice(0,5)});
-  for(const r of shuffle([...ranks]))if(S.byRank[r])tasks.push({type:'lis',r});
+  if(!S.mute)for(const r of shuffle([...ranks]))if(S.byRank[r])tasks.push({type:'lis',r});
   for(const r of shuffle([...ranks]))if(S.byRank[r])tasks.push({type:'ru2ky',r});
   for(const r of ranks)if(S.byRank[r])tasks.push({type:'type',r});
   return tasks;}
@@ -889,7 +895,7 @@ function buildPTasks(pids,withIntro){
     if(withIntro&&!S.srs[id])tasks.push({type:'pintro',r:id});
     tasks.push({type:'pky2ru',r:id});
   }
-  for(const id of shuffle([...pids]))if(S.byPid[id])tasks.push({type:'plis',r:id});
+  if(!S.mute)for(const id of shuffle([...pids]))if(S.byPid[id])tasks.push({type:'plis',r:id});
   for(const id of shuffle([...pids]))if(S.byPid[id]){
     const ph=S.byPid[id];
     if(ph.ky.split(' ').length<=9)tasks.push({type:'pbuild',r:id});
@@ -1084,6 +1090,7 @@ async function getDialogAudio(id){
   return b;
 }
 async function playDialog(id){
+  if(S.mute)return;
   const b=await getDialogAudio(id); if(!b)return;
   try{
     if(curAud){curAud.pause();curAud=null;}
@@ -1133,14 +1140,16 @@ function dialogLesson(id){
       <div class="bar"><div id="pbar" style="width:${100*qi/C.q.length}%"></div></div><span></span></div>
       <div class="wordcard center">
         <div class="small muted">${esc(C.who)}</div>
-        <div style="margin:8px 0"><span class="lisbtn" id="dspk">🔊</span></div>
-        <div class="small muted">слушай диалог — можно переслушивать</div></div>
+        ${S.mute?`<div style="text-align:left;white-space:pre-line;margin:8px 0">${esc(C.ky)}</div>
+        <div class="small muted">🔇 тихий режим — читай диалог</div>`
+        :`<div style="margin:8px 0"><span class="lisbtn" id="dspk">🔊</span></div>
+        <div class="small muted">слушай диалог — можно переслушивать</div>`}</div>
       <p class="prompt">${esc(q.q)}</p>
       ${shuffle(q.a.map((a,i)=>({a,i}))).map(o=>
         `<button class="opt" data-i="${o.i}">${esc(o.a)}</button>`).join('')}
       <div id="dnext"></div>`;
     $('#close').onclick=()=>{if(confirm('Выйти из диалога? Прогресс не сохранится.'))render(dialogScreen);};
-    $('#dspk').onclick=()=>playDialog(id);
+    const dspk=$('#dspk'); if(dspk)dspk.onclick=()=>playDialog(id);
     if(!played){played=true; playDialog(id);}
     document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
       const ok=+b.dataset.i===q.c;
@@ -1169,13 +1178,13 @@ async function finishDialog(id,correct,C){
     ${newDay?`<p class="muted">🔥 Стрик продолжается: <b>${S.streak.count}</b> ${dayWord(S.streak.count)}!</p>`:''}
     ${S.doneToday===S.goal?`<p class="muted">🎯 Цель дня выполнена!</p>`:''}
     <div class="wordcard" style="text-align:left;white-space:pre-line">${esc(C.ky)}
-      <div class="center" style="margin-top:8px"><span class="lisbtn" id="dspk">🔊</span></div></div>
+      ${S.mute?'':`<div class="center" style="margin-top:8px"><span class="lisbtn" id="dspk">🔊</span></div>`}</div>
     <div class="fstats">
       <div class="fstat y"><div class="h">Опыт</div><div class="v">⚡ ${xp}</div></div>
       <div class="fstat g"><div class="h">Точность</div><div class="v">${Math.round(100*correct/total)}%</div></div>
       <div class="fstat o"><div class="h">Стрик</div><div class="v">🔥 ${S.streak.count}</div></div></div>
     <button class="btn" id="cont">Дальше</button></div>`;
-  $('#dspk').onclick=()=>playDialog(id);
+  const dspk2=$('#dspk'); if(dspk2)dspk2.onclick=()=>playDialog(id);
   $('#cont').onclick=()=>render(dialogScreen);
 }
 
@@ -1421,8 +1430,8 @@ function runSession(tasks,onDone){
       if(t.type==='plis'){
         playAudio(ph.id);
         const opts=shuffle([{v:ph.ru,r:ph.id},...pdistract(ph,3)]);
-        ex.innerHTML=`<p class="prompt">Что ты услышал?</p>
-          <div class="center"><span class="lisbtn" data-spk="${ph.id}">🔊</span></div>
+        ex.innerHTML=`<p class="prompt">${S.mute?'Что это значит?':'Что ты услышал?'}</p>
+          <div class="center">${S.mute?`<div class="kyword" style="font-size:22px">${esc(ph.ky)}</div>`:`<span class="lisbtn" data-spk="${ph.id}">🔊</span>`}</div>
           ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
         document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
           const ok=+b.dataset.r===ph.id;
@@ -1474,8 +1483,8 @@ function runSession(tasks,onDone){
     if(t.type==='lis'){
       playAudio(w.freq_rank);
       const opts=shuffle([{v:shortTr(w),r:w.freq_rank},...distractors(w,3,'tr')]);
-      ex.innerHTML=`<p class="prompt">Что ты услышал?</p>
-        <div class="center"><span class="lisbtn" data-spk="${w.freq_rank}">🔊</span></div>
+      ex.innerHTML=`<p class="prompt">${S.mute?'Что это значит?':'Что ты услышал?'}</p>
+        <div class="center">${S.mute?`<div class="kyword">${esc(w.word)}</div>`:`<span class="lisbtn" data-spk="${w.freq_rank}">🔊</span>`}</div>
         ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
       document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
         const ok=+b.dataset.r===w.freq_rank;
@@ -1696,7 +1705,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
