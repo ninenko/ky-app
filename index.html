@@ -1253,19 +1253,19 @@ function tipsScreen(){
 
 /* ---------- Урок / повторение ---------- */
 function lessonScreen(unit,lesson){
-  runSession(buildTasks(lesson.word_ranks,true),async results=>{
+  runSession(buildTasks(lesson.word_ranks,true),async(results,sess)=>{
     const first=!S.doneLessons[lesson.id];
     S.doneLessons[lesson.id]=true;
     await kvSet('doneLessons',S.doneLessons);
-    await finishSession(results,first?10:5);
+    await finishSession(results,first?10:5,sess);
   });
 }
 function pLessonScreen(unit,lesson){
-  runSession(buildPTasks(lesson.phrase_ids,true),async results=>{
+  runSession(buildPTasks(lesson.phrase_ids,true),async(results,sess)=>{
     const first=!S.doneLessons[lesson.id];
     S.doneLessons[lesson.id]=true;
     await kvSet('doneLessons',S.doneLessons);
-    await finishSession(results,first?10:5);
+    await finishSession(results,first?10:5,sess);
   });
 }
 function reviewScreen(){
@@ -1280,12 +1280,12 @@ function reviewScreen(){
   const wr=due.filter(r=>r<PID0).slice(0,7);
   const pr=due.filter(r=>r>PID0).slice(0,3);
   const tasks=[...buildTasks(wr,false),...buildPTasks(pr,false)];
-  runSession(tasks,async results=>{
-    await finishSession(results,5);
+  runSession(tasks,async(results,sess)=>{
+    await finishSession(results,5,sess);
   });
 }
 
-async function finishSession(results,baseXP){
+async function finishSession(results,baseXP,sess){
   let xp=baseXP, perfect=true, total=0, correct=0;
   for(const[r,errs]of Object.entries(results)){
     const st=S.srs[r]||srsInit();
@@ -1298,7 +1298,7 @@ async function finishSession(results,baseXP){
   const newDay=await registerActivity();
   questBump(xp,perfect);
   syncPush(); // прогресс в облако после каждого урока (fire-and-forget)
-  const acc=total?Math.round(100*correct/total):100;
+  const acc=(sess&&sess.ans)?Math.round(100*sess.ok/sess.ans):(total?Math.round(100*correct/total):100);
   confetti();
   const goalHit=S.doneToday===S.goal;
   app.innerHTML=`<div class="finish">
@@ -1322,7 +1322,7 @@ function dayWord(n){const m=n%10,h=n%100;
 function runSession(tasks,onDone){
   prefetchAudio([...new Set(tasks.flatMap(t=>t.ranks||(t.r?[t.r]:[])))]);
   const queue=[...tasks];
-  const errors={};
+  const errors={}, sess={ans:0,ok:0};
   let total=queue.length, done=0, combo=0;
   const PRAISE=['Отлично!','Верно!','Азамат!','Точно!','Супер!','Мыкты!'];
 
@@ -1353,7 +1353,7 @@ function runSession(tasks,onDone){
   }
 
   function finishTask(ok,detail){
-    done+=1;
+    done+=1; sess.ans+=1; if(ok)sess.ok+=1;
     if(ok){combo+=1;} else {combo=0;
       errors[curR()]=(errors[curR()]||0)+1; total+=1; queue.push(queue[0]);}
     bump();
@@ -1362,7 +1362,7 @@ function runSession(tasks,onDone){
   function curR(){return queue[0].r;}
 
   function next(){
-    if(!queue.length){onDone(errors);return;}
+    if(!queue.length){onDone(errors,sess);return;}
     head();
     const t=queue[0];
     const ex=$('#ex');
@@ -1388,7 +1388,7 @@ function runSession(tasks,onDone){
           sel.classList.remove('sel'); sel.classList.add('done'); b.classList.add('done');
           sel=null; left-=1;
           if(!left){
-            done+=1; if(err===0){combo+=1;}else combo=0; bump();
+            done+=1; sess.ans+=1; if(err===0){sess.ok+=1; combo+=1;}else combo=0; bump();
             feedback(err===0,null,()=>{queue.shift(); next();});
           }
         } else {
@@ -1715,7 +1715,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.2.4 2026-07-06 — фавиконка таба: мордочка Суура (SVG data-URI, голова маскота); прежнее: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.2.5 2026-07-06 — точность на финише = верные ответы/все ответы (sess в runSession; раньше — доля слов без единой ошибки, отсюда 0% при ошибке в каждом слове); прежнее: v1.2.4 2026-07-06 — фавиконка таба: мордочка Суура (SVG data-URI, голова маскота); прежнее: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
