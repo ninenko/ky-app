@@ -184,7 +184,7 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .gtip{background:#fff7df; border:2px solid #ffe28a; border-radius:14px; padding:10px 12px; margin:10px 0; font-size:14px; line-height:1.45; text-align:left}
 
 .continue{margin:14px 0}
-.lvl{font-size:13px; font-weight:700; color:var(--muted)}
+.lvl{font-size:13px; font-weight:700; color:var(--muted); cursor:pointer}
 
 /* ---- переключатель уровней ---- */
 .lvltabs{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 2px}
@@ -667,7 +667,7 @@ function home(){
   <div style="display:flex; align-items:center; gap:12px">
     ${marmot(56)}
     <div><h1 style="margin:0">Кыргызча</h1>
-    <div class="lvl">${esc(lv.name)}${lv.next?` · до «${esc(lv.next[1])}» ${lv.next[0]-S.xp} XP`:''}</div></div>
+    <div class="lvl" id="lvlbtn">${esc(lv.name)}${lv.next?` · до «${esc(lv.next[1])}» ${lv.next[0]-S.xp} XP`:''} <span style="opacity:.55">ⓘ</span></div></div>
   </div>`;
   const hasPh=!!(S.pcourse&&S.phrases);
   if(hasPh) html+=`<div class="lvltabs">
@@ -735,6 +735,12 @@ function home(){
     if(!tb.hidden&&tb.dataset.k===b.dataset.k){tb.hidden=true;return;}
     tb.textContent=tips[b.dataset.k]; tb.dataset.k=b.dataset.k; tb.hidden=false;});
   tb.onclick=()=>tb.hidden=true;
+  $('#lvlbtn').onclick=()=>{
+    if(!tb.hidden&&tb.dataset.k==='lvl'){tb.hidden=true;return;}
+    tb.innerHTML='Уровни — шкала опыта (⚡ XP), всего их '+LEVELS.length+':<br><br>'
+      +LEVELS.map(l=>(l[1]===lv.name?'<b>':'')+l[1]+' — от '+l[0]+' XP'+(l[1]===lv.name?' ← ты</b>':'')).join('<br>')
+      +'<br><br><span style="opacity:.75">Пороги растут нелинейно — дальше каждый уровень даётся дольше, это нормально. Уровень отражает усердие, а не знание языка: за знание отвечают SRS-повторения.</span>';
+    tb.dataset.k='lvl'; tb.hidden=false;};
   $('#mutebtn').onclick=async()=>{S.mute=!S.mute; await kvSet('mute',S.mute);
     toast(S.mute?'🔇 Тихий режим: аудио выключено, уроки — без упражнений на слух':'🔊 Аудио включено');
     home();};
@@ -1708,7 +1714,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
