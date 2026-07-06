@@ -117,6 +117,28 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
   background:none; border:0; padding:2px; cursor:pointer; color:var(--text)}
 .stat .ic{font-size:20px}
 .streak-c{color:#ff9600} .xp-c{color:var(--yellow-dk)} .frz-c{color:var(--blue)}
+/* ---- мои слова ---- */
+.wtop{display:flex;align-items:center;gap:10px;margin:12px 0}
+.wback{border:0;background:var(--panel);border-radius:12px;width:40px;height:40px;
+  font-size:20px;cursor:pointer;color:var(--text);flex:none}
+.wchips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.wchip{border:2px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;
+  padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.wchip.on{border-color:var(--blue);color:var(--blue);background:#eaf7fe}
+.wsearch{width:100%;padding:10px 14px;border:2px solid var(--line);border-radius:12px;
+  font:inherit;margin:2px 0 10px}
+.wsearch:focus{outline:none;border-color:var(--blue)}
+.wlist{display:flex;flex-direction:column;gap:8px}
+.wrow{display:flex;align-items:center;gap:10px;text-align:left;background:#fff;
+  border:2px solid var(--line);border-radius:14px;padding:10px 12px;font:inherit;cursor:pointer}
+.wrow .grow{flex:1;min-width:0}
+.wky{font-weight:800;font-size:17px}
+.wru{color:var(--text);opacity:.75}
+.wdet{margin-top:6px;line-height:1.4}
+.wst{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:15px;flex:none}
+.wbar{width:44px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.wbar div{height:100%;background:var(--green)}
+.wrow.hard .wbar div{background:var(--wrong)}
 .ovl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
 .mcard{background:var(--bg);border-radius:var(--r);padding:20px;max-width:440px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .mcard h3{margin:0 0 10px}
@@ -585,6 +607,8 @@ function home(){
   if(UI.lvl===1&&nxt) html+=`<div class="continue"><button class="btn" id="cont">Продолжить · ${esc(nxt.u.title)}</button></div>`;
   if(UI.lvl>1&&nxtP) html+=`<div class="continue"><button class="btn" id="contp">Продолжить · ${esc(nxtP.u.title)}</button></div>`;
   if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due}</button>`;
+  const known=Object.keys(S.srs).filter(k=>+k<PID0&&(S.srs[k].seen||0)>0).length;
+  if(known>0) html+=`<button class="btn ghost" id="mywords" style="margin:8px 0">📖 Мои слова · ${known}</button>`;
 
   if(UI.lvl===1)
   cats.forEach((g,giCat)=>{
@@ -668,6 +692,7 @@ function home(){
     firebase.auth().signOut().then(()=>location.reload());};
   $('#about').onclick=e=>{e.preventDefault();showAbout();};
   $('#remind').onclick=e=>{e.preventDefault();showRemind();};
+  const mw=$('#mywords'); if(mw)mw.onclick=()=>render(wordsScreen);
   const curEl=document.querySelector('.node.cur');
   if(curEl&&curEl.getBoundingClientRect().top>window.innerHeight*0.7)
     curEl.scrollIntoView({block:'center'});
@@ -790,6 +815,74 @@ function buildPTasks(pids,withIntro){
     else tasks.push({type:'pky2ru',r:id});
   }
   return tasks;
+}
+
+/* ---------- Мои слова ---------- */
+const WFILT=[['all','Все'],['learn','Учу'],['know','Знаю'],['hard','Сложные']];
+function wCat(st){
+  if((st.lapses||0)>=3&&st.lapses*3>st.seen)return 'hard';
+  return st.step>=4?'know':'learn';}
+function myWordsData(){
+  const out={w:[],p:[]};
+  for(const[k,st]of Object.entries(S.srs)){
+    if(!st||!(st.seen>0))continue;
+    const r=+k;
+    if(r<PID0){const w=S.byRank[r];
+      if(w)out.w.push({r,st,ky:w.word,ru:w.translation||'',topic:S.topicByRank[r]||w.topic||''});}
+    else{const p=S.byPid[r];
+      if(p)out.p.push({r,st,ky:p.ky,ru:p.ru||'',topic:''});}
+  }
+  const coll=(a,b)=>a.ky.localeCompare(b.ky,'ru');
+  out.w.sort(coll); out.p.sort(coll);
+  return out;}
+function wordsScreen(){
+  const D=myWordsData();
+  const U=wordsScreen.ui||(wordsScreen.ui={tab:'w',f:'all',q:''});
+  if(!D.p.length)U.tab='w';
+  const list=D[U.tab];
+  const counts={all:list.length,learn:0,know:0,hard:0};
+  for(const it of list)counts[wCat(it.st)]++;
+  const q=U.q.trim().toLowerCase();
+  const rows=list.filter(it=>(U.f==='all'||wCat(it.st)===U.f)
+    &&(!q||(it.ky+' '+it.ru).toLowerCase().includes(q)));
+  let html=`<div class="wtop"><button class="wback" id="wback">←</button>
+    <div><h1 style="margin:0">Мои слова</h1>
+    <div class="small muted">💪 знаю · 📗 учу · 🌀 сложные</div></div></div>`;
+  if(D.p.length)html+=`<div class="lvltabs">
+    <button class="lvltab ${U.tab==='w'?'on':''}" data-t="w"><span class="big">🔤</span>Слова · ${D.w.length}</button>
+    <button class="lvltab ${U.tab==='p'?'on':''}" data-t="p"><span class="big">💬</span>Фразы · ${D.p.length}</button></div>`;
+  html+=`<div class="wchips">`+WFILT.map(([k,t])=>
+    `<button class="wchip ${U.f===k?'on':''}" data-f="${k}">${t} · ${counts[k]}</button>`).join('')+`</div>`;
+  html+=`<input class="wsearch" id="wq" placeholder="🔍 поиск (кыргызча / по-русски)" value="${esc(U.q)}">`;
+  if(!rows.length)html+=`<p class="muted center" style="margin-top:24px">Пока пусто</p>`;
+  html+=`<div class="wlist">`+rows.map(it=>{
+    const c=wCat(it.st), pct=Math.round(100*(Math.max(it.st.step,-1)+1)/STEPS.length);
+    const ic=c==='hard'?'🌀':c==='know'?'💪':'📗';
+    return `<button class="wrow ${c==='hard'?'hard':''}" data-r="${it.r}"
+      data-s="${esc((it.ky+' '+it.ru).toLowerCase())}">
+      <div class="grow"><div class="wky">${esc(it.ky)}</div>
+      <div class="wru small">${esc(U.tab==='w'?shortTr({translation:it.ru}):it.ru)}</div>
+      <div class="wdet small" hidden></div></div>
+      <div class="wst"><span>${ic}</span><div class="wbar"><div style="width:${pct}%"></div></div></div>
+    </button>`;}).join('')+`</div>`;
+  app.innerHTML=html;
+  $('#wback').onclick=()=>render(home);
+  document.querySelectorAll('.lvltab').forEach(b=>b.onclick=()=>{
+    U.tab=b.dataset.t; U.f='all'; render(wordsScreen);});
+  document.querySelectorAll('.wchip').forEach(b=>b.onclick=()=>{
+    U.f=b.dataset.f; render(wordsScreen);});
+  const wq=$('#wq');
+  wq.oninput=()=>{U.q=wq.value; const s=wq.value.trim().toLowerCase();
+    document.querySelectorAll('.wrow').forEach(el=>{el.hidden=!!s&&!el.dataset.s.includes(s);});};
+  document.querySelectorAll('.wrow').forEach(el=>el.onclick=()=>{
+    const d=el.querySelector('.wdet');
+    if(!d.hidden){d.hidden=true;return;}
+    const it=list.find(x=>x.r===+el.dataset.r); if(!it)return;
+    const st=it.st;
+    const nd=st.due?(st.due<=today()?'повтор сегодня':'повтор '+st.due.slice(5).split('-').reverse().join('.')):'';
+    d.innerHTML=(U.tab==='w'?esc(it.ru)+(it.topic?` · <span class="muted">${esc(it.topic)}</span>`:'')+'<br>':'')
+      +`<span class="muted">видел ${st.seen}× · ошибок ${st.lapses||0}${nd?' · '+nd:''}</span>`;
+    d.hidden=false;});
 }
 
 /* ---------- Урок / повторение ---------- */
@@ -1204,7 +1297,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
