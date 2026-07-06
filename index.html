@@ -346,10 +346,10 @@ function idbOpen(){return new Promise((res,rej)=>{
     if(!d.objectStoreNames.contains('srs'))d.createObjectStore('srs');
     if(!d.objectStoreNames.contains('audio'))d.createObjectStore('audio');};
   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
-function kvGet(k,store='kv'){return new Promise((res,rej)=>{
+function kvGet(k,store='kv'){if(S.demo)return Promise.resolve(undefined);return new Promise((res,rej)=>{
   const t=idb.transaction(store).objectStore(store).get(k);
   t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error);});}
-function kvSet(k,v,store='kv'){return new Promise((res,rej)=>{
+function kvSet(k,v,store='kv'){if(S.demo)return Promise.resolve();return new Promise((res,rej)=>{
   const t=idb.transaction(store,'readwrite').objectStore(store).put(v,k);
   t.onsuccess=()=>res(); t.onerror=()=>rej(t.error);});}
 function srsAll(){return new Promise((res,rej)=>{
@@ -576,13 +576,66 @@ function loginScreen(){
     ${marmot(150,'wave')}<h1>Кыргызча</h1>
     <p class="muted">Салам! Я Суур, гималайский сурок.<br>Научу тебя кыргызскому!</p>
     <div style="height:20px"></div>
-    <button class="btn blue" id="login">Войти через Google</button></div>`;
+    <button class="btn blue" id="login">Войти через Google</button>
+    <div style="height:10px"></div>
+    <button class="btn ghost" id="demo">🐹 Демо-вход</button></div>`;
+  $('#demo').onclick=()=>{
+    const d=showModal(`<h3>🐹 Салам! Я Суур</h3>
+      <p class="small">Демо — это просто попробовать: несколько уроков со словами, упражнения,
+      опыт и комбо — всё как по-настоящему, только без регистрации и без звука.</p>
+      <p class="small"><b>Прогресс я запоминать не буду</b> — закроешь страницу, и всё обнулится.
+      Такие правила: серьёзные вещи я храню только для своих.</p>
+      <p class="small">Понравится — заходи через Google и напиши Ивану на
+      <a href="mailto:ivan.ninenko@gmail.com?subject=KY APP">ivan.ninenko@gmail.com</a>
+      (тема «KY APP»), он подключит тебя, и начнём по-настоящему!</p>
+      <button class="btn" id="demogo">Попробовать</button>`);
+    d.querySelector('#demogo').onclick=()=>{d.remove(); startDemo();};};
   $('#login').onclick=async()=>{
     const p=new firebase.auth.GoogleAuthProvider();
     try{await firebase.auth().signInWithPopup(p);}
     catch(e){ try{await firebase.auth().signInWithRedirect(p);}
       catch(e2){toast('Ошибка входа: '+e2.code);} }
   };
+}
+
+/* ---------- Демо-режим: мини-курс в памяти (Tilchi open-source, реальные записи банка) ---------- */
+const DEMO_WORDS=[
+ {freq_rank:64,word:'мен',translation:'я'},
+ {freq_rank:2051,word:'сен',translation:'ты'},
+ {freq_rank:241,word:'ким',translation:'кто'},
+ {freq_rank:34,word:'адам',translation:'человек'},
+ {freq_rank:382,word:'ата',translation:'отец'},
+ {freq_rank:1859,word:'эне',translation:'мать'},
+ {freq_rank:1394,word:'тоо',translation:'гора'},
+ {freq_rank:245,word:'суу',translation:'вода'},
+ {freq_rank:189,word:'жер',translation:'земля, место'},
+ {freq_rank:326,word:'үй',translation:'дом'},
+ {freq_rank:199,word:'күн',translation:'день',translation2:'солнце'},
+ {freq_rank:708,word:'ат',translation:'лошадь, конь',translation2:'имя'},
+ {freq_rank:148,word:'жакшы',translation:'хороший, хорошо'},
+ {freq_rank:1215,word:'жаман',translation:'плохой'},
+ {freq_rank:130,word:'чоң',translation:'большой',translation2:'старший'},
+ {freq_rank:2131,word:'ооба',translation:'да'},
+ {freq_rank:16,word:'жок',translation:'нет, не имеется'},
+ {freq_rank:197,word:'эмне',translation:'что'}];
+const DEMO_UNITS=[
+ {id:1,title:'Знакомство I',topic:'Люди и семья',
+  lessons:[{id:'dm1-l1',word_ranks:[64,2051,241]},{id:'dm1-l2',word_ranks:[34,382,1859]}]},
+ {id:2,title:'Мир вокруг I',topic:'Природа и окружающий мир',
+  lessons:[{id:'dm2-l1',word_ranks:[1394,245,189]},{id:'dm2-l2',word_ranks:[326,199,708]}]},
+ {id:3,title:'Первые слова I',topic:'Общая лексика',
+  lessons:[{id:'dm3-l1',word_ranks:[148,1215,130]},{id:'dm3-l2',word_ranks:[2131,16,197]}]}];
+function startDemo(){
+  S.demo=true; S.user=null; S.mute=true;
+  S.streak={count:0,last:null,freezes:2}; S.xp=0; S.goal=2; S.settings=null;
+  S.doneLessons={}; S.confus={}; S.srs={}; S.doneToday=0; S.week=null; S.tipN=0;
+  const units=DEMO_UNITS.map(u=>({...u,
+    words:u.lessons.flatMap(l=>l.word_ranks).map(r=>({freq_rank:r,topic:u.topic}))}));
+  S.wordbank={schema:'demo',words:DEMO_WORDS};
+  S.course={meta:{v:'demo'},units};
+  S.phrases=null; S.pcourse=null;
+  UI.lvl=1; UI.cat=null; UI.unit=-1;
+  index(); render(home);
 }
 
 const UNIT_COLORS=[['#58cc02','#46a302'],['#1cb0f6','#1899d6'],['#ce82ff','#a568cc'],
@@ -686,6 +739,9 @@ function home(){
     <button class="stat" id="mutebtn" title="тихий режим"><span class="ic">${S.mute?'🔇':'🔊'}</span></button>
   </div>
   <div class="tipbox" id="tipbox" hidden></div>
+  ${S.demo?`<div class="gtip">🐹 <b>Это демо от Суура</b> — прогресс не сохраняется, звука нет.
+    Понравилось? Напиши Ивану на <a href="mailto:ivan.ninenko@gmail.com?subject=KY APP">ivan.ninenko@gmail.com</a>
+    (тема «KY APP») — он подключит тебя, и я запомню каждый твой шаг!</div>`:''}
   <div style="display:flex; align-items:center; gap:12px">
     ${marmot(56)}
     <div><h1 style="margin:0">Кыргызча</h1>
@@ -763,7 +819,9 @@ function home(){
       +LEVELS.map(l=>(l[1]===lv.name?'<b>':'')+l[1]+' — от '+l[0]+' XP'+(l[1]===lv.name?' ← ты</b>':'')).join('<br>')
       +'<br><br><span style="opacity:.75">Пороги растут нелинейно — дальше каждый уровень даётся дольше, это нормально. Уровень отражает усердие, а не знание языка: за знание отвечают SRS-повторения.</span>';
     tb.dataset.k='lvl'; tb.hidden=false;};
-  $('#mutebtn').onclick=async()=>{S.mute=!S.mute; await kvSet('mute',S.mute);
+  $('#mutebtn').onclick=async()=>{
+    if(S.demo){toast('🔇 В демо звука нет — подключись по-настоящему, там всё озвучено!');return;}
+    S.mute=!S.mute; await kvSet('mute',S.mute);
     toast(S.mute?'🔇 Тихий режим: аудио выключено, уроки — без упражнений на слух':'🔊 Аудио включено');
     home();};
 
@@ -798,6 +856,7 @@ function home(){
   const rv=$('#review'); if(rv)rv.onclick=()=>render(reviewScreen);
   $('#goal').onchange=async e=>{S.goal=+e.target.value; await kvSet('goal',S.goal); syncPush();};
   $('#logout').onclick=e=>{e.preventDefault();
+    if(S.demo){location.reload();return;}
     firebase.auth().signOut().then(()=>location.reload());};
   $('#about').onclick=e=>{e.preventDefault();showAbout();};
   $('#gram').onclick=e=>{e.preventDefault();render(tipsScreen);};
@@ -1736,7 +1795,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.2.10 2026-07-06 — экран Permission denied: приветствие Суура с маскотом и mailto ivan.ninenko@gmail.com (тема KY APP); прежнее: v1.2.9 2026-07-06 — откат P.S. в модалке писем (не нужен: письма включаются сами); прежнее: v1.2.8 2026-07-06 — модалка писем Суура: примечание про доступ по списку (Gmail сообщить Ивану); прежнее: v1.2.7 2026-07-06 — подсказка ❄️: дата последнего сгорания заморозки (streak.burn/burnN); прежнее: v1.2.6 2026-07-06 — Enter на десктопе жмёт «Дальше» (фидбек/интро/чтение/диалоги/финиш; из инпутов и с фокуса на кнопках не перехватывается); прежнее: v1.2.5 2026-07-06 — точность на финише = верные ответы/все ответы (sess в runSession; раньше — доля слов без единой ошибки, отсюда 0% при ошибке в каждом слове); прежнее: v1.2.4 2026-07-06 — фавиконка таба: мордочка Суура (SVG data-URI, голова маскота); прежнее: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.3 2026-07-06 — 🐹 демо-вход без регистрации: модалка Суура, мини-курс 18 слов/3 юнита в памяти (Tilchi open-source, реальные записи банка), тихий режим, kv отключён (ничего не сохраняется), баннер с mailto; прежнее: v1.2.10 2026-07-06 — экран Permission denied: приветствие Суура с маскотом и mailto ivan.ninenko@gmail.com (тема KY APP); прежнее: v1.2.9 2026-07-06 — откат P.S. в модалке писем (не нужен: письма включаются сами); прежнее: v1.2.8 2026-07-06 — модалка писем Суура: примечание про доступ по списку (Gmail сообщить Ивану); прежнее: v1.2.7 2026-07-06 — подсказка ❄️: дата последнего сгорания заморозки (streak.burn/burnN); прежнее: v1.2.6 2026-07-06 — Enter на десктопе жмёт «Дальше» (фидбек/интро/чтение/диалоги/финиш; из инпутов и с фокуса на кнопках не перехватывается); прежнее: v1.2.5 2026-07-06 — точность на финише = верные ответы/все ответы (sess в runSession; раньше — доля слов без единой ошибки, отсюда 0% при ошибке в каждом слове); прежнее: v1.2.4 2026-07-06 — фавиконка таба: мордочка Суура (SVG data-URI, голова маскота); прежнее: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
