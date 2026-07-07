@@ -155,10 +155,17 @@ input[type=text]:focus{outline:none; border-color:var(--blue); background:#fff}
 .wky{font-weight:800;font-size:17px}
 .wru{color:var(--text);opacity:.75}
 .wdet{margin-top:6px;line-height:1.4}
-.wst{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:15px;flex:none}
-.wbar{width:44px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.wst{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:15px;flex:none;min-width:92px}
+.wbar{width:80px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
 .wbar div{height:100%;background:var(--green)}
 .wrow.hard .wbar div{background:var(--wrong)}
+.cyb{font-size:10px;font-weight:800;border-radius:999px;padding:2px 8px;white-space:nowrap;line-height:1.6}
+.cyb.long{background:#e6f7ec;color:#137a3e}
+.cyb.mid{background:#e7f0ff;color:#1656c0}
+.cyb.short{background:#fff3e0;color:#b35c00}
+.cyb.hard{background:#fdeaea;color:#c0392b}
+.cynote{font-size:10px;color:var(--muted);white-space:nowrap;font-weight:700}
+.cynote.due{color:var(--wrong)}
 .ovl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
 .mcard{background:var(--bg);border-radius:var(--r);padding:20px;max-width:440px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .mcard h3{margin:0 0 10px}
@@ -1028,6 +1035,16 @@ const WFILT=[['all','Все'],['learn','Учу'],['know','Знаю'],['hard','С
 function wCat(st){
   if((st.lapses||0)>=3&&st.lapses*3>st.seen)return 'hard';
   return st.step>=4?'know':'learn';}
+/* «цикл повторения» слова: чем длиннее интервал, тем увереннее оно закреплено.
+   long = step≥4 (интервал ≥35 дн., уверенно уходит в длинный цикл);
+   mid = step 2–3; short = только начал; hard = «пиявка». */
+function cycleInfo(st){
+  const days=STEPS[Math.min(Math.max(st.step||0,0),STEPS.length-1)];
+  const due=!!(st.due&&st.due<=today());
+  if((st.lapses||0)>=3&&st.lapses*3>st.seen)return {k:'hard',ic:'🌀',lab:'трудное',days,due};
+  if(st.step>=4)return {k:'long',ic:'🟢',lab:'длинный цикл',days,due};
+  if(st.step>=2)return {k:'mid',ic:'🔵',lab:'закрепляю',days,due};
+  return {k:'short',ic:'🟠',lab:'учу',days,due};}
 function myWordsData(){
   const out={w:[],p:[]};
   for(const[k,st]of Object.entries(S.srs)){
@@ -1053,7 +1070,7 @@ function wordsScreen(){
     &&(!q||(it.ky+' '+it.ru).toLowerCase().includes(q)));
   let html=`<div class="wtop"><button class="wback" id="wback">←</button>
     <div><h1 style="margin:0">Мои слова</h1>
-    <div class="small muted">💪 знаю · 📗 учу · 🌀 сложные</div></div></div>`;
+    <div class="small muted">🟢 длинный цикл · 🔵 закрепляю · 🟠 учу · 🌀 трудное · ⏰ пора повторить</div></div></div>`;
   if(D.p.length)html+=`<div class="lvltabs">
     <button class="lvltab ${U.tab==='w'?'on':''}" data-t="w"><span class="big">🔤</span>Слова · ${D.w.length}</button>
     <button class="lvltab ${U.tab==='p'?'on':''}" data-t="p"><span class="big">💬</span>Фразы · ${D.p.length}</button></div>`;
@@ -1063,14 +1080,16 @@ function wordsScreen(){
   if(!rows.length)html+=`<p class="muted center" style="margin-top:24px">Пока пусто</p>`;
   html+=`<div class="wlist">`+rows.map(it=>{
     const c=wCat(it.st), pct=Math.round(100*(Math.max(it.st.step,-1)+1)/STEPS.length);
-    const ic=c==='hard'?'🌀':c==='know'?'💪':'📗';
+    const cy=cycleInfo(it.st);
     return `<button class="wrow ${c==='hard'?'hard':''}" data-r="${it.r}"
       data-s="${esc((it.ky+' '+it.ru).toLowerCase())}">
       <div class="grow"><div class="wky">${esc(it.ky)}</div>
       <div class="wru small">${esc(U.tab==='w'?shortTr({translation:it.ru}):it.ru)}</div>
       <div class="wdet small" hidden></div></div>
       <span class="spk" data-spk="${it.r}">🔊</span>
-      <div class="wst"><span>${ic}</span><div class="wbar"><div style="width:${pct}%"></div></div></div>
+      <div class="wst"><span class="cyb ${cy.k}">${cy.ic} ${cy.lab}</span>
+      <div class="wbar"><div style="width:${pct}%"></div></div>
+      <span class="cynote${cy.due?' due':''}">${cy.due?'⏰ пора повторить':'через '+cy.days+' дн.'}</span></div>
     </button>`;}).join('')+`</div>`;
   app.innerHTML=html;
   $('#wback').onclick=()=>render(home);
@@ -1087,8 +1106,9 @@ function wordsScreen(){
     const it=list.find(x=>x.r===+el.dataset.r); if(!it)return;
     const st=it.st;
     const nd=st.due?(st.due<=today()?'повтор сегодня':'повтор '+st.due.slice(5).split('-').reverse().join('.')):'';
+    const cy=cycleInfo(st);
     d.innerHTML=(U.tab==='w'?esc(it.ru)+(it.topic?` · <span class="muted">${esc(it.topic)}</span>`:'')+'<br>':'')
-      +`<span class="muted">видел ${st.seen}× · ошибок ${st.lapses||0}${nd?' · '+nd:''}</span>`;
+      +`<span class="muted">видел ${st.seen}× · ошибок ${st.lapses||0} · цикл ${cy.days} дн.${nd?' · '+nd:''}</span>`;
     d.hidden=false;});
 }
 
@@ -1433,6 +1453,12 @@ function runSession(tasks,onDone){
   prefetchAudio([...new Set(tasks.flatMap(t=>t.ranks||(t.r?[t.r]:[])))]);
   const queue=[...tasks];
   const errors={}, sess={ans:0,ok:0};
+  /* Регистрируем КАЖДОЕ изучаемое слово/фразу в результатах (0 ошибок изначально),
+     чтобы finishSession обновил SRS даже при 100% верных ответов и слово ушло в цикл.
+     Раньше errors заполнялся только на ошибках (+intro/pintro) → идеальное повторение
+     не двигало срок, и слова возвращались снова. Инцидент: 2026-07-07. */
+  for(const t of tasks){const rs=t.ranks||(t.r!=null?[t.r]:[]);
+    for(const rr of rs)if(errors[rr]==null)errors[rr]=0;}
   let total=queue.length, done=0, combo=0;
   const PRAISE=['Отлично!','Верно!','Азамат!','Точно!','Супер!','Мыкты!'];
 
@@ -1827,7 +1853,7 @@ async function syncPull(){
   if('serviceWorker'in navigator)
     navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
-/* build: v1.4.1 2026-07-07 — 🐹 демо озвучено: аудио 18 демо-слов (16 OmniVoice ×2 голоса + 2 живых CV) вшито в оболочку (DEMO_AUDIO), демо читает из памяти, тихий режим больше не форсится, плашка «звука нет» убрана; OmniVoice Apache-2.0 + CV CC0 → публиковать аудио можно; прежнее: v1.4.0 2026-07-07 — 🔊 переозвучка на OmniVoice (два голоса, случайное чередование м/ж при каждом воспроизведении); audio2/{w,p}/r* = {m,f} либо {cv}; старый строковый AkylAI-кэш инвалидируется (перезагрузка объекта); экран «о приложении» обновлён; прежнее: v1.3.7 2026-07-07 — повторение: слово, отвеченное сегодня правильно, уходит в длинный цикл (reviewRanks = только просроченные по due; убрано включение всего с ls===today; неправильные остаются, т.к. due=today); прежнее: v1.3.6 2026-07-06 — финальный Суур с кубком: рука горизонтально от края тела (зеркально правой), крупный кубок целиком левее головы, viewBox -14; прежнее: v1.3.5 2026-07-06 — кубок крупнее, в правой лапе над прогресс-баром (лапа поверх кубка); прежнее: v1.3.3 2026-07-06 — Суур с кубком вместо 🏆 на пройденных юнитах (marmotCup, 5 мест); повторение = просроченные + пройденное сегодня (srs.ls, reviewRanks); прежнее: v1.3.2 2026-07-06 — повторение в демо: все изученные слова (иначе кнопка не появлялась — SRS-сроки завтрашние); прежнее: v1.3.1 2026-07-06 — модалка писем в демо: плашка «письма не работают», галочка disabled, сохранение — тост; прежнее: v1.3 2026-07-06 — 🐹 демо-вход без регистрации: модалка Суура, мини-курс 18 слов/3 юнита в памяти (Tilchi open-source, реальные записи банка), тихий режим, kv отключён (ничего не сохраняется), баннер с mailto; прежнее: v1.2.10 2026-07-06 — экран Permission denied: приветствие Суура с маскотом и mailto ivan.ninenko@gmail.com (тема KY APP); прежнее: v1.2.9 2026-07-06 — откат P.S. в модалке писем (не нужен: письма включаются сами); прежнее: v1.2.8 2026-07-06 — модалка писем Суура: примечание про доступ по списку (Gmail сообщить Ивану); прежнее: v1.2.7 2026-07-06 — подсказка ❄️: дата последнего сгорания заморозки (streak.burn/burnN); прежнее: v1.2.6 2026-07-06 — Enter на десктопе жмёт «Дальше» (фидбек/интро/чтение/диалоги/финиш; из инпутов и с фокуса на кнопках не перехватывается); прежнее: v1.2.5 2026-07-06 — точность на финише = верные ответы/все ответы (sess в runSession; раньше — доля слов без единой ошибки, отсюда 0% при ошибке в каждом слове); прежнее: v1.2.4 2026-07-06 — фавиконка таба: мордочка Суура (SVG data-URI, голова маскота); прежнее: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
+/* build: v1.4.2 2026-07-07 — 🐛 ФИКС повторения: слово, отвеченное ВЕРНО, теперь уходит в цикл. Баг: errors/results наполнялся только на ошибках (+intro/pintro), в повторении intro нет → идеальная сессия давала пустой results → finishSession не вызывал srsOnResult → due не двигался, слова возвращались. Фикс: runSession засеивает errors[r]=0 для всех изучаемых рангов (слова+фразы+match). В «Мои слова» добавлены пометки цикла: 🟢 длинный цикл / 🔵 закрепляю / 🟠 учу / 🌀 трудное + ⏰ «пора повторить» / «через N дн.» + интервал в деталях. Прежнее: v1.4.1 2026-07-07 — 🐹 демо озвучено: аудио 18 демо-слов (16 OmniVoice ×2 голоса + 2 живых CV) вшито в оболочку (DEMO_AUDIO), демо читает из памяти, тихий режим больше не форсится, плашка «звука нет» убрана; OmniVoice Apache-2.0 + CV CC0 → публиковать аудио можно; прежнее: v1.4.0 2026-07-07 — 🔊 переозвучка на OmniVoice (два голоса, случайное чередование м/ж при каждом воспроизведении); audio2/{w,p}/r* = {m,f} либо {cv}; старый строковый AkylAI-кэш инвалидируется (перезагрузка объекта); экран «о приложении» обновлён; прежнее: v1.3.7 2026-07-07 — повторение: слово, отвеченное сегодня правильно, уходит в длинный цикл (reviewRanks = только просроченные по due; убрано включение всего с ls===today; неправильные остаются, т.к. due=today); прежнее: v1.3.6 2026-07-06 — финальный Суур с кубком: рука горизонтально от края тела (зеркально правой), крупный кубок целиком левее головы, viewBox -14; прежнее: v1.3.5 2026-07-06 — кубок крупнее, в правой лапе над прогресс-баром (лапа поверх кубка); прежнее: v1.3.3 2026-07-06 — Суур с кубком вместо 🏆 на пройденных юнитах (marmotCup, 5 мест); повторение = просроченные + пройденное сегодня (srs.ls, reviewRanks); прежнее: v1.3.2 2026-07-06 — повторение в демо: все изученные слова (иначе кнопка не появлялась — SRS-сроки завтрашние); прежнее: v1.3.1 2026-07-06 — модалка писем в демо: плашка «письма не работают», галочка disabled, сохранение — тост; прежнее: v1.3 2026-07-06 — 🐹 демо-вход без регистрации: модалка Суура, мини-курс 18 слов/3 юнита в памяти (Tilchi open-source, реальные записи банка), тихий режим, kv отключён (ничего не сохраняется), баннер с mailto; прежнее: v1.2.10 2026-07-06 — экран Permission denied: приветствие Суура с маскотом и mailto ivan.ninenko@gmail.com (тема KY APP); прежнее: v1.2.9 2026-07-06 — откат P.S. в модалке писем (не нужен: письма включаются сами); прежнее: v1.2.8 2026-07-06 — модалка писем Суура: примечание про доступ по списку (Gmail сообщить Ивану); прежнее: v1.2.7 2026-07-06 — подсказка ❄️: дата последнего сгорания заморозки (streak.burn/burnN); прежнее: v1.2.6 2026-07-06 — Enter на десктопе жмёт «Дальше» (фидбек/интро/чтение/диалоги/финиш; из инпутов и с фокуса на кнопках не перехватывается); прежнее: v1.2.5 2026-07-06 — точность на финише = верные ответы/все ответы (sess в runSession; раньше — доля слов без единой ошибки, отсюда 0% при ошибке в каждом слове); прежнее: v1.2.4 2026-07-06 — фавиконка таба: мордочка Суура (SVG data-URI, голова маскота); прежнее: v1.2.3 2026-07-06 — клик по уровню на главной: подсказка со всеми 7 уровнями XP и позицией; прежнее: v1.2.2 2026-07-06 — футер: строки цель/ссылки/дисклеймер (flex), без упоминания источников фраз; прежнее: v1.2.1 2026-07-06 — 🔇 тихий режим (тумблер в статбаре: без автоплея и 🔊, lis/plis заменяются текстовыми, диалоги по транскрипту, kv mute); прежнее: v1.2 2026-07-06 — 🎧 Диалоги (Peace Corps: 10 аудио-диалогов носителей, RTDB dialogs + audio/d, ключи gd*), 🎯 квесты недели (XP/уроки/идеальные, локально, бонус-XP), 💡 грамм-подсказки (ротация на финише + экран «Грамматика» из футера); прежнее: v1.1.1 2026-07-06 — прогресс-бары у всех юнитов, подсветка начатых, 🏆 за пройденные (золотая карточка); прежнее: v1.1 2026-07-06 — аудирование (слово/фраза на слух, написание после ответа) + уровень «Чтение» (Belebele kir_Cyrl: 488 текстов / 900 вопросов, RTDB reading, лениво+кэш); прежнее: v1.0 2026-07-06 — озвучка всех слов и фраз (AkylAI TTS + 11 клипов Common Voice; RTDB audio/*, кэш IndexedDB, 🔊 и автоплей в упражнениях и «Моих словах»); прежнее: v0.3.5-words 2026-07-06 — экран «Мои слова» (изученный словарь: фильтры учу/знаю/сложные, поиск, детали по тапу); прежнее: v0.3.4-fb 2026-07-05 — leech-cap (проблемные слова не уходят дальше 16 дней) + приоритет проблемных/просроченных в повторении */
 </script>
 </body>
 </html>
