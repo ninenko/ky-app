@@ -131,8 +131,8 @@ function runSession(tasks,onDone){
       const ky=shuffle(pairs.map(w=>({k:w.freq_rank,txt:w.word})));
       const ru=shuffle(pairs.map(w=>({k:w.freq_rank,txt:shortTr(w)})));
       ex.innerHTML=`<p class="prompt">Соедини пары</p><div class="match">
-        ${ky.map(o=>`<button class="mbtn" data-k="${o.k}" data-s="ky">${esc(o.txt)}</button>`).join('')}
-        ${ru.map(o=>`<button class="mbtn" data-k="${o.k}" data-s="ru">${esc(o.txt)}</button>`).join('')}
+        ${ru.map((o,i)=>`<button class="mbtn" data-k="${o.k}" data-s="ru">${esc(o.txt)}</button>`+
+          `<button class="mbtn" data-k="${ky[i].k}" data-s="ky">${esc(ky[i].txt)}</button>`).join('')}
       </div>`;
       document.querySelectorAll('.mbtn').forEach(b=>b.onclick=()=>{
         if(b.classList.contains('done'))return;
