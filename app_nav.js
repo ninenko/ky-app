@@ -21,6 +21,28 @@ function firstUndoneP(){
       if(!S.doneLessons[l.id]) return {u,l};
   return null;
 }
+/* «Продолжить» = раздел последнего пройденного урока: недоделанные уроки
+   от последнего юнита вперёд; если впереди всё пройдено — первый недоделанный. */
+function contTarget(){
+  if(S.lastPos&&S.lastPos.lvl===1&&S.course){
+    const seq=S.course.units, i=seq.findIndex(u=>u.id===S.lastPos.uid);
+    if(i>=0)for(let j=i;j<seq.length;j++){
+      const l=seq[j].lessons.find(l=>!S.doneLessons[l.id]);
+      if(l)return {u:seq[j],l};
+    }
+  }
+  return firstUndone();
+}
+function contTargetP(){
+  if(S.lastPos&&S.lastPos.lvl===UI.lvl){
+    const seq=pUnits(), i=seq.findIndex(u=>u.id===S.lastPos.uid);
+    if(i>=0)for(let j=i;j<seq.length;j++){
+      const l=seq[j].lessons.find(l=>!S.doneLessons[l.id]);
+      if(l)return {u:seq[j],l};
+    }
+  }
+  return firstUndoneP();
+}
 function pPathHTML(u,nxt){
   const ci=(u.id-1)%UNIT_COLORS.length, [c,cd]=UNIT_COLORS[ci];
   let h=`<div class="path" style="--uc:${c};--ucd:${cd}">`;
@@ -58,8 +80,8 @@ function pathHTML(u,nxt){
 function home(){
   const due=S.demo?Object.keys(S.srs).filter(r=>(S.srs[r].seen||0)>0).length:reviewRanks().length;
   const lv=level();
-  const nxt=firstUndone();
-  const nxtP=UI.lvl>1?firstUndoneP():null;
+  const nxt=contTarget();
+  const nxtP=UI.lvl>1?contTargetP():null;
   const cats=catGroups();
   if(UI.cat===null){
     UI.cat=0; UI.unit=0;
@@ -385,6 +407,8 @@ function wordsScreen(){
   html+=`<div class="wchips">`+WFILT.map(([k,t])=>
     `<button class="wchip ${U.f===k?'on':''}" data-f="${k}">${t} · ${counts[k]}</button>`).join('')+`</div>`;
   html+=`<input class="wsearch" id="wq" placeholder="🔍 поиск (кыргызча / по-русски)" value="${esc(U.q)}">`;
+  if(rows.length)html+=`<button class="btn blue" id="wpract" style="margin:10px 0 4px">🔁 Повторить · случайные из «${WFILT.find(x=>x[0]===U.f)[1]}»</button>
+    <div class="small muted" style="margin-bottom:6px">Свободная тренировка: SRS-циклы и сроки повторения не меняются.</div>`;
   if(!rows.length)html+=`<p class="muted center" style="margin-top:24px">Пока пусто</p>`;
   html+=`<div class="wlist">`+rows.map(it=>{
     const c=wCat(it.st), pct=Math.round(100*(Math.max(it.st.step,-1)+1)/STEPS.length);
@@ -408,6 +432,14 @@ function wordsScreen(){
   const wq=$('#wq');
   wq.oninput=()=>{U.q=wq.value; const s=wq.value.trim().toLowerCase();
     document.querySelectorAll('.wrow').forEach(el=>{el.hidden=!!s&&!el.dataset.s.includes(s);});};
+  const wp=$('#wpract'); if(wp)wp.onclick=()=>{
+    const s=U.q.trim().toLowerCase();
+    const pool=list.filter(it=>(U.f==='all'||wCat(it.st)===U.f)
+      &&(!s||(it.ky+' '+it.ru).toLowerCase().includes(s))
+      &&(U.tab==='w'?S.byRank[it.r]:S.byPid[it.r]));
+    const picks=shuffle(pool).slice(0,U.tab==='w'?7:5).map(it=>it.r);
+    if(!picks.length){toast('Под этот фильтр слов нет');return;}
+    render(practiceScreen,U.tab,picks);};
   document.querySelectorAll('.wrow').forEach(el=>el.onclick=()=>{
     const d=el.querySelector('.wdet');
     if(!d.hidden){d.hidden=true;return;}

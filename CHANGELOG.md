@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-07-12 (v48) — 🧭 v1.4.6: умное «Продолжить» + свободное «Повторить» в «Моих словах»
+- По запросу Ивана, две функции:
+- ✅ **«Продолжить» ведёт в раздел последнего пройденного урока.** Новое состояние `lastPos={lvl,uid,d}` (kv `lastpos` + RTDB-sync в `progress`): пишется в `lessonScreen`/`pLessonScreen` (уровень фраз — по принадлежности юнита level2/level3, не по UI). При старте вкладка Слова/Фразы/Предложения восстанавливается (`loadMeta`, merge в `syncPull` по дате). Цель кнопки — `contTarget`/`contTargetP` (app_nav): недоделанные уроки от последнего юнита вперёд (включая его тему), иначе fallback `firstUndone`/`firstUndoneP`. Дерево на главной раскрывается к этой же цели.
+- ✅ **«🔁 Повторить» в «Моих словах»** — свободная тренировка: случайные 7 слов (или 5 фраз) из текущего фильтра (все/учу/знаю/сложные + поиск + вкладка). `practiceScreen` (app_session) → `finishSession(..., practice=true)`: SRS **не трогается** (нет `srsOnResult`/записи в srs-store — due/step/seen не меняются, дни повторения не сдвигаются); XP/стрик/цель дня/квесты начисляются как обычно; на финише — «Повторение пройдено!». Подпись под кнопкой предупреждает, что циклы не меняются.
+- Файлы: `app_core.js?v=2` (lastPos в loadMeta, `saveLastPos`), `app_nav.js?v=2` (contTarget/contTargetP, кнопка+обработчик в wordsScreen), `app_session.js?v=3` (saveLastPos в уроках, practiceScreen, practice-режим finishSession), `app_boot.js?v=2` (lastPos в encProg/syncPull, build-коммент), `index.html` (бампы ?v).
+- Проверка: `node --check` всех файлов; смоук-тест contTarget/contTargetP на фикстурах (7/7 pass: fallback без lastPos, продолжение юнита, добитый юнит → вперёд/fallback, фразы, чужая вкладка). Маунт снова отдавал обрезанные файлы → деплой через git-клон в `~` с реприменением правок скриптом (рецепт HANDOVER), правки в клоне и в папке проекта идентичны.
+
+## 2026-07-12 (v47) — 🎯 v1.4.5: «Соедини пары» — русский слева, кыргызский справа
+- Проблема (отзыв Ивана): в упражнении match кнопки KY и RU шли двумя блоками подряд и в 2-колоночной сетке перемешивались по колонкам.
+- ✅ `app_session.js`: рендер чередует пары — в каждой строке RU слева, KY справа (порядок внутри колонок по-прежнему перемешан, соответствий по строкам нет).
+- ✅ `index.html`: `app_session.js?v=2`; `sw.js`: CACHE → `kyapp-shell-v3`.
+- Деплой: push.py (3 файла), live проверен через cache-buster — v=2 и новый рендер на месте.
+
+## 2026-07-07 (v46) — 🧹 аудит документов: проект подготовлен к передаче (Opus-ready)
+- Проблема: `HANDOVER.md` сильно устарел (v1.3.5, нить OmniVoice «открыта», index.html описан монолитом, правило «правки только питон-патчем»); «Current state» в `CLAUDE.md` разросся до ~15 КБ истории; в корне 5 закрытых handover/report-файлов; `src/README.md` = «пока пусто».
+- ✅ `CLAUDE.md` переписан: компактный Current state (v1.4.4, RTDB-узлы, разбитая оболочка, пайплайн новых слов, Next), правила дополнены (бамп `?v=N`, дубли top-level, no loanwords, флаги native check), указатели на HANDOVER/CHANGELOG. История не потеряна — она в CHANGELOG.
+- ✅ `HANDOVER.md` переписан как единая точка входа новой сессии: актуальное состояние, инструменты, ловушки песочницы (обновлены: файлы src/ мелкие → Edit безопасен; обход больших файлов через git-клон в `~`), приёмы, Next, карта архива.
+- ✅ В `.claude/archive/` перенесены закрытые: `HANDOVER_omnivoice_revoice.md`, `HANDOVER_opus_audio_integration.md`, `HANDOVER_course_and_app_v01.md`, `REPORT_omnivoice_2026-07-07.md`, `HF_TOKEN_HOWTO.md` (токен уже в `_quickref.md`). Рецепт точечной озвучки через Space остаётся доступен в архивном revoice-handover (ссылки из CLAUDE/HANDOVER ведут туда).
+- ✅ `src/README.md` актуализирован (7 скриптов, правила правок). Сверено: index.html 21 330 Б, 7 `<script src>` в правильном порядке, tracker-бэкапов ровно 2, ключи только в `_quickref.md`.
+- Код и RTDB не тронуты, деплой не требовался.
+
+## 2026-07-07 (v45) — 📦 v1.4.4: этап 2 разбивки — основной скрипт порезан на 6 файлов
+- Карта: 25 секционных комментариев `/* ---------- */`; top-level исполняемый код только в core (`firebase.initializeApp`, 2 document-listener'а) и boot (async IIFE запуска в самом конце) — резать безопасно.
+- Разрез по границам секций, **реконструкция байт-в-байт** (assert): `app_core.js` (ядро: IndexedDB/состояние/аудио/уровни/стрик/SRS/RTDB/маскот/экраны, 17 КБ) · `app_demo.js` (3.5 КБ) · `app_nav.js` (навигация/упражнения/фразы/Мои слова, 25 КБ) · `app_extras.js` (Чтение/Диалоги/квесты/грамм-подсказки, 17 КБ) · `app_session.js` (урок/повторение/сессия, 17 КБ) · `app_boot.js` (конфетти/модалки/sync/запуск + история build-комментариев, 17 КБ).
+- Каждый файл: classic-скрипт (НЕ ES-модуль), свой `'use strict';` (директива изначально была на весь скрипт — семантика сохранена), заголовок с описанием. **index.html = 21 330 байт** (было 116 754, изначально 318 900). Порядок тегов = порядок кусков, все с `?v=1`. `<!-- build -->`-маркер в head; история build — в app_boot.js.
+- sw.js SHELL += 6 файлов. `node --check` каждого куска OK (границы не режут конструкции). Дублей top-level объявлений между файлами НЕТ.
+- ✅ Открытие: все 63 `onclick` — рантайм-присваивания `el.onclick=()=>…` (не HTML-атрибуты) → страх ES-модулей был преувеличен; но и выгоды они не дадут, остаёмся на classic.
+- Live: build success, все 9 файлов = клон байт-в-байт, `</html>` на месте. src/ синхронизирован.
+- ⚠️ Правило впредь: правка любого app_*.js → бамп его `?v=N` в index.html.
+
+## 2026-07-07 (v44) — 📦 v1.4.3: этап 1 разбивки оболочки — DEMO_AUDIO вынесен из index.html
+- Идея E (одобрена Иваном): разбить index.html по файлам, пока Fable доступен; этап 1 = вынос данных.
+- Разведка: `DEMO_AUDIO` = ОДНА строка 202 605 симв. = 63% файла. DEMO_WORDS/UNITS/GRAMMAR_TIPS — по паре КБ, не трогали.
+- Вынос: `demo_audio.js` (обычный `<script src>` ДО основного скрипта, НЕ ES-модуль — top-level const виден следующим classic-скриптам; никаких module-ловушек). Тег с `?v=1`; sw.js network-first + `ignoreSearch:true`, в SHELL добавлен `./demo_audio.js` (офлайн-прекэш).
+- **index.html: 318 900 → 116 754 байта (−63%)** — ниже порога проблем маунта (~100+ КБ, но втрое меньше прежнего).
+- Вся работа в git-клоне в `~` (обход маунта по memory-рецепту): правки python-скриптом, `node --check` обоих JS (main script извлечён — OK), целостность данных (18 слов, голоса m/f, 198 КБ), пуш напрямую.
+- Live проверен: raw = клон байт-в-байт; Pages build success; `index.html?v=$RANDOM` = 116 754 + `</html>`, demo_audio.js 202 864, тег на месте.
+- Рабочая копия `src/` синхронизирована из клона (index.html, sw.js, + demo_audio.js). Заодно вылечен стухший inode (маунт показывал 315 892).
+- Next: этапы 2+ (вынос модулей srs/audio/demo) — риски расписаны Ивану, ждём отмашки.
+
+## 2026-07-07 (v44) — 🐹 друг: подключён Уланбек (saparulanbek@)
+- Письмо от saparulanbek@gmail.com (тема «KY APP»). RTDB `allowed/` += `saparulanbek@gmail,com: true`. Проверено `get allowed` — 3 ключа.
+- Ответ-инструкция (ИИ-ассистент, 5 режимов) — черновиком в Gmail.
+- Второй запрос (abdulqodirmuhammad03@, Teach for Uzbekistan) — НЕ подключён по решению Ивана; Иван ответил сам про демо/полный доступ.
+
+## 2026-07-07 (v43) — 🐹 друг: подключён Даниил Романовский
+- Письмо от romanowskiy@gmail.com (тема «KY APP»): «подключи меня».
+- RTDB `allowed/` += `romanowskiy@gmail,com: true` (точки→запятые, как в rules). Проверено `get allowed` — 2 ключа (Иван + Даниил).
+- Ответ-инструкция (по FRIENDS_HOWTO) создан черновиком в Gmail — ждёт отправки Иваном.
+
 ## 2026-07-07 (v42) — 🐛 ФИКС повторения (v1.4.2): идеальная сессия наконец двигает срок
 - 💬 **Иван**: «прошёл всё на 100%, но слова из повторения не удалились, снова они же».
 - 🔎 **Причина (реальный баг, не UX):** в `runSession` объект `errors` (он же `results`) наполнялся ТОЛЬКО при ошибках (строка `errors[curR()]=...` в finishTask). `finishSession` обновляет SRS в цикле `for(...results)` — т.е. только по словам с ошибкой. Новые слова спасал `errors[t.r]=0` в обработчиках `intro`/`pintro`. Но в **повторении** intro-заданий нет (`withIntro=false`) → ответил всё верно → `results={}` → `srsOnResult` НЕ вызывается → `due`/`step` не двигаются → слова возвращаются каждый раз.
@@ -376,4 +426,32 @@
 - 📝 Ivan shared: Common Voice Scripted Speech 26.0 Kyrgyz on Mozilla Data Collective — CC0, 30,741 validated clips / 5,051 sentences with clip↔text TSVs. Added to tracker (Status: New, not downloaded — 1.04 GB, MDC account needed). Best native-audio source found so far; also the designated open asset if the app ever goes public.
 
 ## 2026-07-03 — Tilchi .tdb CRACKED + extracted
-- ✅ Reverse-engineered the Tilchi `.tdb` format from the open-source repo (IncorexLLC/Tilchi). Encryption = **Blowfish-ECB** (canonical big-endian key schedule + F, but 8-byte blocks read little
+- ✅ Reverse-engineered the Tilchi `.tdb` format from the open-source repo (IncorexLLC/Tilchi). Encryption = **Blowfish-ECB** (canonical big-endian key schedule + F, but 8-byte blocks read little-endian per x86 file layout); key = 88-byte CP1251 proverb hardcoded in `MainForm.cpp` (first 72 bytes used). Payload = Msftedit RTF (CP1251, charset 204). Kyrgyz ө/ү/ң stored as CP1251 slots є/ї/ў.
+- ✅ Decrypted both files → `content/tilchi/KR.rtf`, `content/tilchi/RK.rtf`.
+- ✅ Extracted clean headword→definition pairs: **36,891** Ky→Ru (`tilchi_KR.tsv`) + **48,358** Ru→Ky (`tilchi_RK.tsv`). ө/ү/ң verified correct on spot-check.
+- ✅ Tooling saved: `content/tilchi/decrypt_tdb.py`, `content/tilchi/extract_tilchi.py`, `content/tilchi/README.md`.
+- ⏭️ Next: review sample, then merge into `content/words.json` word bank (test-run rule).
+- 🔄 Tracker: Tilchi KR/RK rows → Status = Processed.
+
+## 2026-07-03 — Frequency list + sentence corpora (Batch 1/2)
+- ✅ **Kyrgyz frequency list** (frekwencja, 5,050 words) → `sources/frequency/ky-frequency-5050.txt`. Noisy → needs cleaning before tiering.
+- ✅ **GoURMET ky-ru** parallel corpus (CC0, **23,016 aligned pairs**) → `sources/corpora/GoURMET-crawled.ky-ru.zip` (+ extracted `_gourmet_peek/`).
+- ✅ **Tatoeba Kyrgyz** (702 sentences, CC-BY) → `sources/corpora/kir_sentences.tsv`.
+- ✅ Wrote manifests for `frequency/` and `corpora/`; backed up tracker (`tracker_backup_20260703b.xlsx`); logged 3 new Sources rows.
+- ℹ️ Yudakhin PDFs (added manually by Ivan) noted in tracker as reference scans.
+
+## 2026-07-03 — Dictionaries downloaded (Batch 1, partial)
+- ✅ Wrote `sources/DOWNLOAD_PLAN.md` (3-batch source ingest plan).
+- ✅ Downloaded **kaikki.org Kyrgyz** Wiktextract JSONL → `sources/dictionaries/kaikki-Kyrgyz.jsonl` (4,052 entries, CC-BY-SA). ө/ү/ң OK.
+- ✅ Downloaded **Tilchi** KR.tdb + RK.tdb (Ky↔Ru, Yudakhin-derived, open-source) → `sources/dictionaries/tilchi/`.
+- ⚠️ **Yudakhin StarDict** NOT obtained — tili.kg is bot-protected (HTTP 403); flagged Status=Error, needs manual download. See `sources/dictionaries/_manifest.md`.
+- ✅ Backed up tracker → `tracker_backup_20260703.xlsx`; logged 4 rows in Sources sheet; wrote `_manifest.md`.
+
+## 2026-07-03 — Project initialization
+- ✅ Deployed project from NEW_PROJECT_TEMPLATE-2.md (app-build-focused structure).
+- ✅ Created folders: `research/`, `sources/`, `content/`, `src/`, `.claude/`.
+- ✅ Moved 3 docs into `research/`: proposal, Duolingo playbook, resources research.
+- ✅ Wrote `CLAUDE.md` (English, to save tokens), `.claude/workflow.md`, this changelog.
+- ✅ Built `tracker.xlsx` (Sources + Word bank sheets, empty).
+- ✅ Deleted template copy from project folder.
+- State: awaiting first sources in `sources/` → Stage 2 (process → word bank).

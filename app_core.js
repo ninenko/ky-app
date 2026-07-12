@@ -119,6 +119,9 @@ async function loadMeta(){
   S.week=await kvGet('week')||null;
   S.mute=await kvGet('mute')||false;
   S.tipN=await kvGet('tipn')||0;
+  /* последний пройденный раздел: {lvl,uid,d} — «Продолжить» ведёт туда */
+  S.lastPos=await kvGet('lastpos')||null;
+  if(S.lastPos&&(S.lastPos.lvl===2||S.lastPos.lvl===3))UI.lvl=S.lastPos.lvl;
   const dt=await kvGet('doneToday')||{d:null,n:0};
   S.doneToday=(dt.d===today())?dt.n:0;
   const st=S.streak;
@@ -142,6 +145,11 @@ async function registerActivity(){
   S.doneToday+=1;
   await kvSet('doneToday',{d:today(),n:S.doneToday});
   return newDay;
+}
+/* запомнить раздел последнего пройденного урока (для «Продолжить») */
+async function saveLastPos(lvl,uid){
+  S.lastPos={lvl,uid,d:today()};
+  await kvSet('lastpos',S.lastPos);
 }
 
 /* ---------- SM-2-lite ---------- */

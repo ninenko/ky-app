@@ -7,6 +7,7 @@ function lessonScreen(unit,lesson){
     const first=!S.doneLessons[lesson.id];
     S.doneLessons[lesson.id]=true;
     await kvSet('doneLessons',S.doneLessons);
+    await saveLastPos(1,unit.id);
     await finishSession(results,first?10:5,sess);
   });
 }
@@ -15,7 +16,17 @@ function pLessonScreen(unit,lesson){
     const first=!S.doneLessons[lesson.id];
     S.doneLessons[lesson.id]=true;
     await kvSet('doneLessons',S.doneLessons);
+    /* уровень по принадлежности юнита (UI.lvl мог смениться) */
+    const lvl=(S.pcourse&&(S.pcourse.level2||[]).some(u=>u.id===unit.id))?2:3;
+    await saveLastPos(lvl,unit.id);
     await finishSession(results,first?10:5,sess);
+  });
+}
+/* Свободное повторение из «Моих слов»: SRS не трогаем (due/step/seen не меняются) */
+function practiceScreen(tab,ranks){
+  const tasks=tab==='w'?buildTasks(ranks,false):buildPTasks(ranks,false);
+  runSession(tasks,async(results,sess)=>{
+    await finishSession(results,5,sess,true);
   });
 }
 function reviewScreen(){
@@ -36,12 +47,14 @@ function reviewScreen(){
   });
 }
 
-async function finishSession(results,baseXP,sess){
+async function finishSession(results,baseXP,sess,practice){
   let xp=baseXP, perfect=true, total=0, correct=0;
   for(const[r,errs]of Object.entries(results)){
-    const st=S.srs[r]||srsInit();
-    S.srs[r]=srsOnResult(st,errs===0);
-    await kvSet(r,S.srs[r],'srs');
+    if(!practice){ /* свободное повторение не двигает SRS-циклы */
+      const st=S.srs[r]||srsInit();
+      S.srs[r]=srsOnResult(st,errs===0);
+      await kvSet(r,S.srs[r],'srs');
+    }
     total+=1; if(errs===0){correct+=1; xp+=2;} else {perfect=false; xp+=1;}
   }
   if(perfect) xp+=5;
@@ -54,7 +67,7 @@ async function finishSession(results,baseXP,sess){
   const goalHit=S.doneToday===S.goal;
   app.innerHTML=`<div class="finish">
     <div style="height:14px"></div>${marmot(130,'cheer')}
-    <h1>${perfect?'Идеально! 🏆':'Урок пройден!'}</h1>
+    <h1>${perfect?'Идеально! 🏆':(practice?'Повторение пройдено!':'Урок пройден!')}</h1>
     ${newDay?`<p class="muted">🔥 Стрик продолжается: <b>${S.streak.count}</b> ${dayWord(S.streak.count)}!</p>`:''}
     ${goalHit?`<p class="muted">🎯 Цель дня выполнена!</p>`:''}
     <div class="fstats">
