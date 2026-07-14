@@ -179,7 +179,7 @@ function runSession(tasks,onDone){
         playAudio(ph.id);
         ex.innerHTML=`<p class="prompt">Новая фраза</p>
           <div class="wordcard">
-          <div class="ruword" style="font-size:24px">${esc(ph.ky)} <span class="spk" data-spk="${ph.id}">🔊</span></div>
+          <div class="ruword" style="font-size:24px">${kyTap(ph.ky)} <span class="spk" data-spk="${ph.id}">🔊</span></div>
           <div class="tr">${esc(ph.ru)}</div>
           <div><span class="topic-pill">${esc(ph.topic)}</span></div></div>
           <button class="btn" id="ok">Понятно</button>`;
@@ -190,7 +190,7 @@ function runSession(tasks,onDone){
         const opts=shuffle([{v:ph.ru,r:ph.id},...pdistract(ph,3)]);
         playAudio(ph.id);
         ex.innerHTML=`<p class="prompt">Выбери перевод</p>
-          <div class="ruword" style="font-size:22px">${esc(ph.ky)} <span class="spk" data-spk="${ph.id}">🔊</span></div>
+          <div class="ruword" style="font-size:22px">${kyTap(ph.ky)} <span class="spk" data-spk="${ph.id}">🔊</span></div>
           ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
         document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
           const ok=+b.dataset.r===ph.id;
@@ -211,7 +211,7 @@ function runSession(tasks,onDone){
         playAudio(ph.id);
         const opts=shuffle([{v:ph.ru,r:ph.id},...pdistract(ph,3)]);
         ex.innerHTML=`<p class="prompt">${S.mute?'Что это значит?':'Что ты услышал?'}</p>
-          <div class="center">${S.mute?`<div class="kyword" style="font-size:22px">${esc(ph.ky)}</div>`:`<span class="lisbtn" data-spk="${ph.id}">🔊</span>`}</div>
+          <div class="center">${S.mute?`<div class="kyword" style="font-size:22px">${kyTap(ph.ky)}</div>`:`<span class="lisbtn" data-spk="${ph.id}">🔊</span>`}</div>
           ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
         document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
           const ok=+b.dataset.r===ph.id;

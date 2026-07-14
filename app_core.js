@@ -90,6 +90,45 @@ document.addEventListener('click',e=>{
   const s=e.target.closest('[data-spk]');
   if(s){e.stopPropagation();e.preventDefault();playAudio(+s.dataset.spk);}
 },true);
+
+/* ---------- Тап по слову кыргызской фразы → перевод из банка ---------- */
+function kyLookup(tok){
+  if(!S.wordbank)return null;
+  let best=null;
+  for(const w of S.wordbank.words){
+    const v=(w.word||'').toLowerCase();
+    if(v===tok)return {w,exact:true};
+    if(v.length>=3&&tok.startsWith(v)&&tok.length-v.length<=6
+       &&(!best||v.length>best.w.word.length))best={w,exact:false};
+  }
+  return best;
+}
+function kyTap(text){ /* размечает слова фразы; кликабельны только найденные в банке */
+  return String(text).split(' ').map(tok=>{
+    const m=tok.match(/^([«("]*)([А-Яа-яЁёӨөҮүҢң-]+)([»").,!?:;…]*)$/);
+    if(!m)return esc(tok);
+    const hit=kyLookup(m[2].toLowerCase());
+    if(!hit)return esc(tok);
+    return esc(m[1])+`<span class="kyw" data-kyr="${hit.w.freq_rank}"${hit.exact?'':' data-kyx="1"'}>${esc(m[2])}</span>`+esc(m[3]);
+  }).join(' ');
+}
+let kyPopOwner=null;
+document.addEventListener('click',e=>{
+  if(e.target.closest('#kypop'))return;      // клик по 🔊 внутри попапа не закрывает его
+  const t=e.target.closest('.kyw');
+  const old=document.getElementById('kypop');
+  if(old)old.remove();
+  if(!t||t===kyPopOwner){kyPopOwner=null;return;}
+  kyPopOwner=t;
+  const w=S.byRank[+t.dataset.kyr]; if(!w)return;
+  const d=document.createElement('div'); d.id='kypop';
+  d.innerHTML=`<div class="k">${esc(w.word)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
+    <div class="m">${esc(shortTr(w))}</div>${t.dataset.kyx?'<div class="n">≈ по основе слова</div>':''}`;
+  document.body.appendChild(d);
+  const rc=t.getBoundingClientRect();
+  d.style.left=Math.max(8,Math.min(rc.left+scrollX,scrollX+innerWidth-d.offsetWidth-8))+'px';
+  d.style.top=(rc.bottom+scrollY+7)+'px';
+},true);
 /* Enter (десктоп) = «Дальше»: фидбек урока, интро, чтение/диалоги, финиш.
    Не срабатывает из полей ввода и с фокусом на кнопке (у них свой Enter). */
 document.addEventListener('keydown',e=>{
@@ -286,7 +325,9 @@ function marmotCup(size){ /* Суур с кубком в вытянутой ле
 }
 
 /* ---------- Экраны ---------- */
-function render(fn,...a){window.scrollTo(0,0); fn(...a);}
+function render(fn,...a){window.scrollTo(0,0);
+  const p=document.getElementById('kypop'); if(p){p.remove();kyPopOwner=null;}
+  fn(...a);}
 
 function loginScreen(){
   app.innerHTML=`<div class="center" style="padding-top:12vh">
