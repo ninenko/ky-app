@@ -140,8 +140,9 @@ select{padding:9px 12px;border:1px solid var(--tfk-black);font-size:14px;backgro
 .subjhead:hover{background:#f6f8f4}
 .detailwrap{border-top:1px solid var(--line);background:#faf9f5;padding:6px 16px 14px}
 .resrow:hover{background:#f6f8f4}
-.langchips{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle}
-.langchip{display:inline-block;padding:2px 8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--tfk-green-dark);color:#fff;background:var(--tfk-green-dark);letter-spacing:.03em;user-select:none;text-transform:none}
+.langchips{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle}
+.langchip{display:inline-flex;align-items:center;gap:3px;padding:1px 5px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid var(--tfk-green-dark);color:#fff;background:var(--tfk-green-dark);letter-spacing:.02em;user-select:none;text-transform:none;line-height:1.5;white-space:nowrap}
+.langchip .x{font-size:7px;font-style:normal;line-height:1}
 .langchip.off{background:transparent;color:var(--tfk-gray-50);border-color:var(--tfk-gray-25)}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:60;padding:24px;overflow:auto}
 .overlay.on{display:flex;align-items:flex-start;justify-content:center}
@@ -302,7 +303,7 @@ function renderRef(){
 
 /* ---- subjects: matrix table + modal detail ---- */
 let matSort={key:'name',dir:1}, activeLangs={kg:true,ru:true};
-function chip(l){const on=activeLangs[l];const lbl=l==='ru'?'РУ':'КЫ';return `<span class="langchip ${on?'on':'off'}" onclick="toggleLang('${l}')">${lbl}${on?' ✕':''}</span>`;}
+function chip(l){const on=activeLangs[l];const lbl=l==='ru'?'РУ':'КЫ';return `<span class="langchip ${on?'on':'off'}" onclick="toggleLang('${l}')">${lbl}${on?'<i class="x">✕</i>':''}</span>`;}
 function toggleLang(l){activeLangs[l]=!activeLangs[l];renderMatrix();}
 function setMatSort(k){if(matSort.key===k)matSort.dir*=-1;else{matSort.key=k;matSort.dir=(k==='name'?1:-1);}renderMatrix();}
 function renderMatrix(){
