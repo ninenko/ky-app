@@ -287,7 +287,7 @@ function renderOverview(){
 let subjChartObj;
 function drawSubjChart(st){const ctx=document.getElementById('subjChart');if(subjChartObj)subjChartObj.destroy();
   subjChartObj=new Chart(ctx,{type:'bar',data:{labels:st.map(x=>x.s),datasets:[
-    {label:'3-я когорта (2026)',data:st.map(x=>+x.avg.toFixed(1)),backgroundColor:st.map(x=>barc(x.avg))},
+    {label:'3-я когорта (2026)',data:st.map(x=>+x.avg.toFixed(1)),backgroundColor:'#FFC607'},
     {label:'Пред. когорты · тест 2 (2025)',data:st.map(x=>x.prev),backgroundColor:'#A2B7B1'}
   ]},options:{indexAxis:'y',plugins:{legend:{display:true,position:'bottom'}},scales:{x:{min:0,max:100}},maintainAspectRatio:false}});}
 function renderRef(){
