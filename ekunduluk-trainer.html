@@ -80,12 +80,13 @@ tbody tr:nth-child(even) { background: #fafbfc; }
 th.avg, td.avg { text-align: right; padding-right: 14px; }
 .mark { display: inline-block; min-width: 22px; padding: 2px 6px; border-radius: 3px; color: #fff; font-weight: 700; font-size: 12.5px; }
 .m5 { background: #1f8f4a; } .m4 { background: #2a86f0; } .m3 { background: #e08e1a; } .m2 { background: #d9342b; }
+.m1 { background: #a01d16; } .mx { background: #6b7f92; font-size: 11px; }
 .dash { color: #9aa7b4; }
 
 .hint { padding: 10px 14px; background: #fff8e1; border: 1px solid #ffe08a; border-radius: 4px; margin: 12px 0; font-size: 12.5px; color: #7a5c00; }
 
 /* modal */
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 50; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 80; }
 .overlay.open { display: flex; }
 .modal { background: #fff; border-radius: 6px; width: 420px; max-width: 92vw; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.35); }
 .modal-head { background: linear-gradient(90deg,#1666e0,#2a8de8); color:#fff; padding: 12px 16px; font-weight: 600; display:flex; align-items:center; }
@@ -95,6 +96,36 @@ th.avg, td.avg { text-align: right; padding-right: 14px; }
 .marks-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .mark-btn { width: 46px; height: 46px; border-radius: 5px; border: 2px solid #dfe6ee; background: #f7f9fb; font-size: 17px; font-weight: 700; cursor: pointer; }
 .mark-btn:hover { border-color: #2a86f0; background: #eaf3ff; }
+
+/* ---- grading modal ---- */
+.gm-wrap { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 60; }
+.gm-wrap.open { display: flex; }
+.gm { background: #fff; border-radius: 8px; width: 1010px; max-width: 95vw; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 16px 50px rgba(0,0,0,.4); overflow: hidden; }
+.gm-head { background: #1a73e8; color: #fff; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+.gm-head .t { font-size: 17px; font-weight: 700; }
+.gm-head select { margin-left: auto; padding: 8px 12px; border-radius: 5px; border: 1px solid #cfd8e3; font-size: 13.5px; min-width: 200px; background: #fff; }
+.gm-head .close { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; }
+.gm-sec { padding: 14px 18px; border-bottom: 1px solid #e6ecf2; }
+.gm-sec .cap { font-size: 13px; font-weight: 600; color: #2c3e50; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+#toolRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool { min-width: 48px; height: 42px; padding: 0 12px; border: 1px solid #d3dbe4; border-radius: 5px; background: #fff; font-size: 14.5px; font-weight: 600; cursor: pointer; color: #24292e; }
+.tool:hover { border-color: #1a73e8; background: #f0f6ff; }
+.tool.on { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+.tool.del.on { background: #d9342b; border-color: #d9342b; }
+.gm-hint { margin-top: 10px; font-size: 12.5px; color: #5d7085; }
+.gm-hint.warn { color: #d9342b; font-weight: 600; }
+.gm-list { padding: 12px 18px; overflow-y: auto; flex: 1; }
+.rrow { display: flex; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.rrow .num { width: 26px; height: 26px; border-radius: 4px; background: #1a73e8; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; flex-shrink: 0; }
+.rrow .rname { flex: 1; font-size: 13.5px; }
+.slot { width: 54px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 5px; cursor: pointer; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.slot.empty { border: 1px dashed #b9c4d0; color: #8fa0b1; }
+.slot.empty:hover { border-color: #1a73e8; color: #1a73e8; background: #f0f6ff; }
+.slot.filled { background: #1a73e8; color: #fff; }
+.slot.filled.delmode:hover { background: #d9342b; }
+.gm-foot { padding: 14px 18px; border-top: 1px solid #e6ecf2; display: flex; justify-content: flex-end; gap: 12px; background: #fafbfc; }
+.gm-foot .btn { padding: 10px 22px; }
+.btn-white { background: #fff; color: #34495e; border: 1px solid #cfd8e3; }
 </style>
 </head>
 <body>
@@ -174,6 +205,39 @@ th.avg, td.avg { text-align: right; padding-right: 14px; }
   </div>
 </div>
 
+<!-- grading modal -->
+<div class="gm-wrap" id="gm">
+  <div class="gm">
+    <div class="gm-head">
+      <span style="font-size:19px">&#127912;</span>
+      <span class="t">Выставление оценок</span>
+      <select onchange="notNeeded(); this.selectedIndex=0;">
+        <option>Оценка</option>
+        <option>Домашнее задание</option>
+        <option>Контрольная работа</option>
+        <option>Активность на уроке</option>
+      </select>
+      <span class="close" onclick="closeGrading()">&times;</span>
+    </div>
+
+    <div class="gm-sec">
+      <div class="cap">&#127919; Выберите оценку</div>
+      <div id="toolRow"></div>
+      <div class="gm-hint" id="gmHint"></div>
+    </div>
+
+    <div class="gm-sec" style="padding-bottom:0; border:0">
+      <div class="cap">&#128101; <span id="gmCount">Ученики</span></div>
+    </div>
+    <div class="gm-list" id="roster"></div>
+
+    <div class="gm-foot">
+      <button class="btn btn-white" onclick="closeGrading()">&#10005; Отменить</button>
+      <button class="btn btn-green" onclick="saveAll()">&#10003; Сохранить все</button>
+    </div>
+  </div>
+</div>
+
 <!-- modal -->
 <div class="overlay" id="ov" onclick="if(event.target===this) closeM()">
   <div class="modal">
@@ -215,10 +279,12 @@ function render(){
     const g = s[1];
     const cells = g.map((v,i)=>{
       const cls = 'gcell' + (sel===i ? ' sel' : '');
-      const inner = v ? `<span class="mark m${v}">${v}</span>` : '<span class="dash">&mdash;</span>';
+      const inner = (v===null||v===undefined)
+        ? '<span class="dash">&mdash;</span>'
+        : `<span class="mark m${typeof v==='number' ? v : 'x'}">${v}</span>`;
       return `<td class="${cls}" onclick="pick(${i})">${inner}</td>`;
     }).join('');
-    const vals = g.filter(v=>v);
+    const vals = g.filter(v=>typeof v==='number');
     const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1).replace('.0','') : '';
     return `<tr><td class="name">&#128100; ${s[0]}</td>${cells}<td class="avg">${avg}</td></tr>`;
   }).join('');
@@ -234,20 +300,76 @@ function pick(i){
   render();
 }
 
+/* ====== окно выставления оценок ====== */
+const MARKS = ['5','4','3','2','1','НБ','Опоз','Инф'];
+let draft = [];        // черновик оценок по выбранному столбцу
+let tool  = null;      // выбранная оценка или 'del'
+
 function openGrading(){
   if (sel===null) return;
-  const date = document.querySelector(`th.date[data-i="${sel}"]`).textContent;
-  show('Выставление оценок', `
-    <b>Урок:</b> ${date}<br>
-    <b>Класс:</b> 7Г<br><br>
-    Здесь будет форма выставления оценок — сделаем позже.
-    <div class="marks-row">
-      <button class="mark-btn" onclick="notNeeded()">5</button>
-      <button class="mark-btn" onclick="notNeeded()">4</button>
-      <button class="mark-btn" onclick="notNeeded()">3</button>
-      <button class="mark-btn" onclick="notNeeded()">2</button>
-      <button class="mark-btn" onclick="notNeeded()">Н</button>
-    </div>`);
+  draft = students.map(s => s[1][sel]);
+  tool = null;
+  document.getElementById('gm').classList.add('open');
+  renderTools();
+  renderRoster();
+}
+function closeGrading(){ document.getElementById('gm').classList.remove('open'); }
+
+function pickTool(t){
+  tool = (tool===t) ? null : t;
+  renderTools();
+  renderRoster();
+}
+
+function renderTools(){
+  const row = document.getElementById('toolRow');
+  row.innerHTML =
+    MARKS.map(m=>`<button class="tool ${tool===m?'on':''}" onclick="pickTool('${m}')">${m}</button>`).join('') +
+    `<button class="tool del ${tool==='del'?'on':''}" onclick="pickTool('del')" title="Удалить оценку">&#128465;</button>` +
+    `<button class="tool" onclick="notNeeded()" title="Добавить свой тип">&#43;</button>`;
+  document.getElementById('gmHint').textContent = tool===null
+    ? 'Сначала выберите оценку сверху, затем нажмите «+» напротив ученика.'
+    : tool==='del'
+      ? 'Режим удаления: нажмите на оценку ученика, чтобы её убрать.'
+      : `Выбрано: ${tool}. Нажимайте «+» напротив учеников.`;
+}
+
+function renderRoster(){
+  document.getElementById('gmCount').textContent = `Ученики (${students.length})`;
+  document.getElementById('roster').innerHTML = students.map((s,i)=>{
+    const v = draft[i];
+    const slot = v
+      ? `<span class="slot filled ${tool==='del'?'delmode':''}" onclick="assign(${i})">${v}</span>`
+      : `<span class="slot empty" onclick="assign(${i})">+</span>`;
+    return `<div class="rrow"><span class="num">${i+1}</span><span class="rname">${s[0]}</span>${slot}</div>`;
+  }).join('');
+}
+
+function assign(i){
+  if (tool===null){ flash('Сначала выберите оценку сверху'); return; }
+  if (tool==='del'){
+    if (draft[i]===null || draft[i]===undefined){ flash('Здесь нечего удалять'); return; }
+    draft[i] = null;
+  } else {
+    draft[i] = tool;
+  }
+  renderRoster();
+}
+
+function flash(msg){
+  const h = document.getElementById('gmHint');
+  h.textContent = msg;
+  h.classList.add('warn');
+  setTimeout(()=>{ h.classList.remove('warn'); renderTools(); }, 1600);
+}
+
+function saveAll(){
+  students.forEach((s,i)=>{
+    const v = draft[i];
+    s[1][sel] = (v===null||v===undefined) ? null : (/^[1-5]$/.test(v) ? +v : v);
+  });
+  closeGrading();
+  render();
 }
 
 function notNeeded(){
@@ -260,7 +382,8 @@ function show(title, html){
   document.getElementById('ov').classList.add('open');
 }
 function closeM(){ document.getElementById('ov').classList.remove('open'); }
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeM(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeM(); closeGrading(); } });
+document.getElementById('gm').addEventListener('click', e=>{ if(e.target.id==='gm') closeGrading(); });
 
 render();
 </script>
