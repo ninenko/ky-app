@@ -254,7 +254,14 @@ function distractors(word,n,field){
      2) ≥1 из той же темы — семантическая близость полезнее случайных слов;
      3) слова, которые раньше путались с этим (S.confus), приходят чаще — adaptive;
      4) кандидаты с пересекающимся переводом исключены — не бывает двух верных;
-     5) ≥1 уже изученное слово — скрытое повторение.
+     5) ≥1 уже изученное слово — скрытое повторение; изученные вообще в приоритете.
+     v2 (2026-07-20): вместо детерминированного top-n берём пул top-K (POOL) и
+     сэмплируем n взвешенно — иначе при штрафах до 24 и джиттере 4 три лучших
+     кандидата были одни и те же при каждом показе.
+     Пул растёт сам собой: кандидаты берутся из S.wordbank.words, а бонус seen
+     читается из S.srs, куда finishSession пишет srsOnResult (seen+=1) сразу по
+     завершении урока — значит слова только что пройденного урока участвуют в
+     дистракторах уже со следующего урока, без перезагрузки и без sync.
      Возвращает [{v,r}] — текст и freq_rank (rank нужен для учёта путаницы). */
   const ansV=field==='word'?word.word:shortTr(word);
   const topic=S.topicByRank[word.freq_rank]||'';
@@ -267,27 +274,51 @@ function distractors(word,n,field){
     if(used.has(v))continue;
     if(similarMeaning(w,word))continue;
     used.add(v);
-    const dLen=Math.abs(v.length-ansV.length);
+    /* близость длины — мягче, чем в v1 (была главная причина «замороженных»
+       наборов): считаем в «шагах» по 3 символа и с потолком */
+    const dLen=Math.min(Math.abs(v.length-ansV.length)/3,4);
     const dWords=Math.abs(v.split(/\s+/).length-ansV.split(/\s+/).length);
     const seen=!!(S.srs[w.freq_rank]&&S.srs[w.freq_rank].seen>0);
     const same=!!topic&&S.topicByRank[w.freq_rank]===topic;
     const cf=Math.min(conf[w.freq_rank]||0,3);
     cand.push({v,r:w.freq_rank,seen,same,
-      score:dLen+dWords*6-(same?7:0)-cf*8+Math.random()*4});
+      score:dLen+dWords*3-(same?5:0)-(seen?4:0)-cf*8+Math.random()*2});
   }
   cand.sort((a,b)=>a.score-b.score);
-  const out=cand.slice(0,n);
+  const out=sampleK(cand,n);
   /* гарантия: ≥1 из той же темы (если тема есть и кандидаты нашлись) */
   if(out.length>=2&&!out.some(c=>c.same)){
-    const c=cand.find(x=>x.same&&!out.includes(x));
+    const c=pickRnd(cand,x=>x.same&&!out.includes(x));
     if(c)out[out.length-1]=c;
   }
   /* гарантия: ≥1 уже изученное (не затирая единственный тематический слот) */
   if(out.length&&!out.some(c=>c.seen)){
-    const c=cand.find(x=>x.seen&&!out.includes(x));
+    const c=pickRnd(cand,x=>x.seen&&!out.includes(x));
     if(c){let i=out.findIndex(o=>!o.same); if(i<0)i=0; out[i]=c;}
   }
   return out.map(c=>({v:c.v,r:c.r}));}
+
+/* top-K сэмплинг: из первых K отсортированных кандидатов выбираем n штук
+   без повторов, взвешенно по позиции (ближе к началу — чаще). Даёт разные
+   наборы при каждом показе, сохраняя качество (все K — хорошие дистракторы). */
+const DPOOL=14;
+function sampleK(cand,n){
+  const pool=cand.slice(0,Math.max(n,Math.min(DPOOL,cand.length)));
+  const out=[];
+  while(out.length<n&&pool.length){
+    /* вес позиции i: убывает линейно от pool.length до 1 */
+    let tot=0; for(let i=0;i<pool.length;i++)tot+=pool.length-i;
+    let x=Math.random()*tot, k=0;
+    for(let i=0;i<pool.length;i++){x-=pool.length-i; if(x<=0){k=i;break;}}
+    out.push(pool.splice(k,1)[0]);
+  }
+  return out;}
+/* случайный кандидат по предикату (для гарантий — чтобы «тематический»/«изученный»
+   слот тоже не был всегда одним и тем же словом) */
+function pickRnd(cand,pred){
+  const m=[];
+  for(const c of cand){if(pred(c)){m.push(c); if(m.length>=DPOOL)break;}}
+  return m.length?m[Math.floor(Math.random()*m.length)]:null;}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));
   [a[i],a[j]]=[a[j],a[i]];}return a;}
 
@@ -310,21 +341,22 @@ function buildTasks(ranks,withIntro){
 
 /* ---------- Фразы: дистракторы и задания ---------- */
 function pdistract(ph,n){
-  /* переводы других фраз: тот же уровень, приоритет — та же тема, близкая длина */
+  /* переводы других фраз: тот же уровень, приоритет — та же тема, близкая длина.
+     v2 (2026-07-20): top-K сэмплинг, как в distractors() — наборы вариативны. */
   const conf=S.confus[ph.id]||{};
   const cand=[];
   for(const p of S.phrases.phrases){
     if(p.id===ph.id||p.ru===ph.ru)continue;
     if(similarMeaning({translation:p.ru},{translation:ph.ru}))continue;
-    const dLen=Math.abs(p.ru.length-ph.ru.length);
+    const dLen=Math.min(Math.abs(p.ru.length-ph.ru.length)/6,4);
     const same=p.topic===ph.topic&&p.level===ph.level;
     const cf=Math.min(conf[p.id]||0,3);
-    cand.push({v:p.ru,r:p.id,same,score:dLen*0.5-(same?8:0)-cf*8+Math.random()*4});
+    cand.push({v:p.ru,r:p.id,same,score:dLen-(same?5:0)-cf*8+Math.random()*2});
   }
   cand.sort((a,b)=>a.score-b.score);
-  const out=cand.slice(0,n);
+  const out=sampleK(cand,n);
   if(out.length>=2&&!out.some(c=>c.same)){
-    const c=cand.find(x=>x.same&&!out.includes(x));
+    const c=pickRnd(cand,x=>x.same&&!out.includes(x));
     if(c)out[out.length-1]=c;
   }
   return out.map(c=>({v:c.v,r:c.r}));
