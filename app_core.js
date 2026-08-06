@@ -39,7 +39,7 @@ function srsAll(){return new Promise((res,rej)=>{
 
 /* ---------- Состояние ---------- */
 let S={user:null, wordbank:null, course:null, byRank:{}, topicByRank:{}, srs:{}, confus:{},
-  phrases:null, byPid:{}, pcourse:null,
+  phrases:null, byPid:{}, pcourse:null, noAudio:{}, /* ранги без озвучки — им не даём «что ты услышал» */
   streak:{count:0,last:null,freezes:2}, xp:0, goal:1, doneToday:0, doneLessons:{}, settings:null};
 const PID0=20000; // id фраз начинаются с 20001 — не пересекаются с freq_rank слов
 
@@ -55,19 +55,27 @@ function shortTr(w){ // основной перевод: часть до ';'
   return t||w.translation;}
 
 /* ---------- Аудио: RTDB audio/w|p, кэш в IndexedDB ---------- */
+/* Точечная инвалидация кэша: ранг → версия клипа. Клиент хранит версию рядом с
+   данными (`__b`) и перекачивает клип, если она разошлась. Без этого IndexedDB
+   отдавал бы старую запись вечно — кэш аудио никак не версионировался.
+   v1 (2026-08-06): 9 клипов Common Voice перезалиты (алты/сегиз — были не те
+   записи, целые предложения; у остальных срезана тишина, уровень выровнен). */
+const AUDIO_BUST={4:1,16:1,20:1,96:1,204:1,238:1,359:1,543:1,770:1};
 let curAud=null;
 async function getAudio(r){
   if(S.demo)return DEMO_AUDIO[r]||null;   // демо: аудио вшито в оболочку
   let o=null;
   try{o=await kvGet(String(r),'audio');}catch(e){}
   if(typeof o==='string')o=null;              // старый плоский AkylAI-кэш → инвалидация
+  if(o&&(o.__b||0)!==(AUDIO_BUST[r]||0))o=null;   // клип перезалит — кэш устарел
   if(!o){
     try{
       const snap=await firebase.database().ref((+r<PID0?'audio2/w/r':'audio2/p/r')+r).get();
-      if(!snap.exists())return null;
-      o=snap.val(); kvSet(String(r),o,'audio');
+      if(!snap.exists()){S.noAudio[r]=1; return null;}
+      o=snap.val(); o.__b=AUDIO_BUST[r]||0; kvSet(String(r),o,'audio');
     }catch(e){return null;}
   }
+  if(!pickVoice(o))S.noAudio[r]=1;
   return o;
 }
 function pickVoice(o){
@@ -85,7 +93,13 @@ async function playAudio(r){
     curAud.play().catch(()=>{});
   }catch(e){}
 }
-function prefetchAudio(rs){for(const r of rs)getAudio(r);}
+function prefetchAudio(rs){return Promise.all(rs.map(r=>getAudio(r).catch(()=>null)));}
+/* Дожидаемся аудио перед сборкой урока — чтобы buildTasks уже знал, каким словам
+   нельзя давать «что ты услышал». С потолком по времени: на медленной сети урок
+   не должен ждать, недостающее подстрахует пропуск на лету в runSession. */
+function audioReady(rs,ms=1500){
+  if(S.mute||S.demo)return Promise.resolve();
+  return Promise.race([prefetchAudio(rs),new Promise(r=>setTimeout(r,ms))]);}
 document.addEventListener('click',e=>{
   const s=e.target.closest('[data-spk]');
   if(s){e.stopPropagation();e.preventDefault();playAudio(+s.dataset.spk);}

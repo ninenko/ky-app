@@ -1,8 +1,17 @@
 /* Кыргызча — app_session.js: урок / повторение / сессия.
    Часть разбивки index.html (этап 2, 2026-07-07). Classic-скрипт (НЕ ES-модуль): общий глобальный scope, порядок тегов в index.html обязателен. */
 'use strict';
+/* Ждём готовности аудио перед сборкой урока (см. audioReady в app_core): пока не
+   известно, у каких слов есть озвучка, нельзя решить, давать ли им «что ты услышал».
+   Заглушку показываем только если ждём дольше 250 мс — при тёплом кэше её не видно. */
+async function prep(ranks){
+  const t=setTimeout(()=>{app.innerHTML=`<div class="center" style="padding-top:28vh">
+    <div style="font-size:48px">🐾</div>Жүктөлүүдө…</div>`;},250);
+  try{await audioReady(ranks);}finally{clearTimeout(t);}
+}
 /* ---------- Урок / повторение ---------- */
-function lessonScreen(unit,lesson){
+async function lessonScreen(unit,lesson){
+  await prep(lesson.word_ranks);
   runSession(buildTasks(lesson.word_ranks,true),async(results,sess)=>{
     const first=!S.doneLessons[lesson.id];
     S.doneLessons[lesson.id]=true;
@@ -11,7 +20,8 @@ function lessonScreen(unit,lesson){
     await finishSession(results,first?10:5,sess);
   });
 }
-function pLessonScreen(unit,lesson){
+async function pLessonScreen(unit,lesson){
+  await prep(lesson.phrase_ids);
   runSession(buildPTasks(lesson.phrase_ids,true),async(results,sess)=>{
     const first=!S.doneLessons[lesson.id];
     S.doneLessons[lesson.id]=true;
@@ -23,13 +33,14 @@ function pLessonScreen(unit,lesson){
   });
 }
 /* Свободное повторение из «Моих слов»: SRS не трогаем (due/step/seen не меняются) */
-function practiceScreen(tab,ranks){
+async function practiceScreen(tab,ranks){
+  await prep(ranks);
   const tasks=tab==='w'?buildTasks(ranks,false):buildPTasks(ranks,false);
   runSession(tasks,async(results,sess)=>{
     await finishSession(results,5,sess,true);
   });
 }
-function reviewScreen(){
+async function reviewScreen(){
   /* приоритет: сначала проблемные (больше ошибок), при равенстве — самые просроченные */
   /* в демо SRS-сроки не наступают (всё «на завтра») — повторяем всё изученное */
   const due=S.demo?Object.keys(S.srs).filter(r=>(S.srs[r].seen||0)>0).map(Number):reviewRanks();
@@ -41,6 +52,7 @@ function reviewScreen(){
   });
   const wr=due.filter(r=>r<PID0).slice(0,7);
   const pr=due.filter(r=>r>PID0).slice(0,3);
+  await prep([...wr,...pr]);
   const tasks=[...buildTasks(wr,false),...buildPTasks(pr,false)];
   runSession(tasks,async(results,sess)=>{
     await finishSession(results,5,sess);
@@ -131,10 +143,42 @@ function runSession(tasks,onDone){
   }
   function curR(){return queue[0].r;}
 
+  /* Упражнение «что ты услышал» без озвучки показывать нельзя — слушать нечего,
+     остаётся немой 🔊 и угадайка. Проверяем перед показом (аудио приходит асинхронно
+     из IndexedDB/RTDB) и молча снимаем задачу с очереди; ранг запоминается в
+     S.noAudio, чтобы buildTasks больше её не строил. 2026-08-06. */
+  let lastShown=null;   // ранг последнего показанного упражнения (для разводки)
   function next(){
+    if(!queue.length){onDone(errors,sess);return;}
+    const t=queue[0];
+    if((t.type==='lis'||t.type==='plis')&&!S.mute){
+      const skip=()=>{
+        S.noAudio[t.r]=1; queue.shift();
+        /* Снятие задачи могло свести рядом два упражнения по одному слову.
+           Разводим обменом с ближайшей задачей, но только если сам обмен не
+           создаёт новый стык — проверяем обе стороны обеих позиций.
+           (NaN для match/без ранга: любое сравнение ложно, т.е. не мешает.) */
+        const R=i=>(queue[i]&&queue[i].r!=null?queue[i].r:NaN);
+        if(R(0)===lastShown)for(let j=1;j<Math.min(queue.length,5);j++){
+          const a=R(0),b=R(j);
+          if(b===lastShown)continue;              // слева от новой позиции 0
+          if(b===(j===1?a:R(1)))continue;         // справа от новой позиции 0
+          if(j>1&&R(j-1)===a)continue;            // слева от новой позиции j
+          if(R(j+1)===a)continue;                 // справа от новой позиции j
+          [queue[0],queue[j]]=[queue[j],queue[0]]; break;
+        }
+        total=done+queue.length; bump(); next();};
+      getAudio(t.r).then(a=>{if(pickVoice(a))draw(); else skip();}).catch(skip);
+      return;
+    }
+    draw();
+  }
+
+  function draw(){
     if(!queue.length){onDone(errors,sess);return;}
     head();
     const t=queue[0];
+    lastShown=t.ranks?null:t.r;
     const ex=$('#ex');
 
     /* -- match -- */

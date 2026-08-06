@@ -353,7 +353,11 @@ function buildTasks(ranks,withIntro){
   }
   if(rs.length>=3){const mr=rs.slice(0,5);
     tasks.push({type:'match',ranks:mr}); seq.push(...mr);}
-  if(!S.mute)for(const r of spacedOrder(rs,seq))tasks.push({type:'lis',r});
+  /* «что ты услышал» — только для слов с озвучкой (S.noAudio наполняется getAudio).
+     Отсеиваем ДО spacedOrder: иначе в `seq` попадут ранги, которых в ленте нет,
+     и следующий блок будет разводиться относительно призраков (проверено — так
+     возвращались соседние дубли на стыке lis→ru2ky). */
+  if(!S.mute)for(const r of spacedOrder(rs.filter(r=>!S.noAudio[r]),seq))tasks.push({type:'lis',r});
   for(const r of spacedOrder(rs,seq))tasks.push({type:'ru2ky',r});
   for(const r of spacedOrder(rs,seq))tasks.push({type:'type',r});
   return tasks;}
@@ -402,7 +406,7 @@ function buildPTasks(pids,withIntro){
     if(withIntro&&!S.srs[id])tasks.push({type:'pintro',r:id});
     tasks.push({type:'pky2ru',r:id}); seq.push(id);
   }
-  if(!S.mute)for(const id of spacedOrder(ids,seq))tasks.push({type:'plis',r:id});
+  if(!S.mute)for(const id of spacedOrder(ids.filter(i=>!S.noAudio[i]),seq))tasks.push({type:'plis',r:id});
   for(const id of spacedOrder(ids,seq)){
     const ph=S.byPid[id];
     if(ph.ky.split(' ').length<=9)tasks.push({type:'pbuild',r:id});
