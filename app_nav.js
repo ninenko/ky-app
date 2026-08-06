@@ -322,21 +322,40 @@ function pickRnd(cand,pred){
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));
   [a[i],a[j]]=[a[j],a[i]];}return a;}
 
+/* Порядок внутри блока с учётом давности показа (v1.4.9, 2026-08-06).
+   Проблема: блоки шли независимыми shuffle'ами, поэтому слово из конца блока
+   «выбери из 4» часто оказывалось первым в блоке «напиши по-кыргызски» — ответ
+   был только что на экране, запоминания не происходило.
+   Решение: следующий элемент берём из «старшей половины» пула по времени
+   последнего показа. Это гарантирует, что подряд одно слово не повторится
+   (при >=2 словах) и что средний зазор близок к максимальному, но сохраняет
+   вариативность порядка. `seq` — общая лента уже выданных рангов, мутируется. */
+function spacedOrder(items,seq){
+  const pool=[...items], out=[];
+  while(pool.length){
+    const ranked=pool.map(r=>{const i=seq.lastIndexOf(r);
+      return {r,age:i<0?1e9:seq.length-i};}).sort((a,b)=>b.age-a.age);
+    const k=Math.max(1,Math.ceil(ranked.length/2));
+    const r=ranked[Math.floor(Math.random()*k)].r;
+    pool.splice(pool.indexOf(r),1); out.push(r); seq.push(r);
+  }
+  return out;}
+
 function buildTasks(ranks,withIntro){
-  const tasks=[];
+  const tasks=[], seq=[], rs=ranks.filter(r=>S.byRank[r]);
   if(withIntro){
-    for(const r of ranks){ if(!S.byRank[r])continue;
+    for(const r of rs){
       if(!S.srs[r])tasks.push({type:'intro',r});
-      tasks.push({type:'ky2ru',r});
+      tasks.push({type:'ky2ru',r}); seq.push(r);
     }
   } else {
-    for(const r of ranks)if(S.byRank[r])tasks.push({type:'ky2ru',r});
+    for(const r of rs){tasks.push({type:'ky2ru',r}); seq.push(r);}
   }
-  const mr=ranks.filter(r=>S.byRank[r]);
-  if(mr.length>=3)tasks.push({type:'match',ranks:mr.slice(0,5)});
-  if(!S.mute)for(const r of shuffle([...ranks]))if(S.byRank[r])tasks.push({type:'lis',r});
-  for(const r of shuffle([...ranks]))if(S.byRank[r])tasks.push({type:'ru2ky',r});
-  for(const r of ranks)if(S.byRank[r])tasks.push({type:'type',r});
+  if(rs.length>=3){const mr=rs.slice(0,5);
+    tasks.push({type:'match',ranks:mr}); seq.push(...mr);}
+  if(!S.mute)for(const r of spacedOrder(rs,seq))tasks.push({type:'lis',r});
+  for(const r of spacedOrder(rs,seq))tasks.push({type:'ru2ky',r});
+  for(const r of spacedOrder(rs,seq))tasks.push({type:'type',r});
   return tasks;}
 
 /* ---------- Фразы: дистракторы и задания ---------- */
@@ -378,13 +397,13 @@ function pTiles(ph){
   return {words,tiles:shuffle([...words,...decoys])};
 }
 function buildPTasks(pids,withIntro){
-  const tasks=[];
-  for(const id of pids){ if(!S.byPid[id])continue;
+  const tasks=[], seq=[], ids=pids.filter(id=>S.byPid[id]);
+  for(const id of ids){
     if(withIntro&&!S.srs[id])tasks.push({type:'pintro',r:id});
-    tasks.push({type:'pky2ru',r:id});
+    tasks.push({type:'pky2ru',r:id}); seq.push(id);
   }
-  if(!S.mute)for(const id of shuffle([...pids]))if(S.byPid[id])tasks.push({type:'plis',r:id});
-  for(const id of shuffle([...pids]))if(S.byPid[id]){
+  if(!S.mute)for(const id of spacedOrder(ids,seq))tasks.push({type:'plis',r:id});
+  for(const id of spacedOrder(ids,seq)){
     const ph=S.byPid[id];
     if(ph.ky.split(' ').length<=9)tasks.push({type:'pbuild',r:id});
     else tasks.push({type:'pky2ru',r:id});
