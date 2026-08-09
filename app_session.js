@@ -331,6 +331,7 @@ function runSession(tasks,onDone){
       ex.innerHTML=`<p class="prompt">Новое слово</p>
         <div class="wordcard">
         <div class="kyword">${esc(w.word)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
+        ${w.stem?`<div class="stem">основа: <b>${esc(w.stem)}</b> — к ней клеятся окончания</div>`:''}
         <div class="tr">${esc(w.translation)}</div>
         ${w.translation2?`<div class="also">также: ${esc(w.translation2)}</div>`:''}
         ${findTopic(t.r)?`<div><span class="topic-pill">${esc(findTopic(t.r))}</span></div>`:''}</div>
