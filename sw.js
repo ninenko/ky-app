@@ -1,5 +1,7 @@
-/* Кыргызча v0.2-ui — service worker: кэш только оболочки (без контента). */
-const CACHE = 'kyapp-shell-v4';
+/* Кыргызча — service worker: кэш только оболочки (без контента), network-first.
+   2026-08-09: починен синтаксис (не хватало `);` в конце fetch-листенера — SW не регистрировался
+   и оффлайн-кэш не работал вообще). После правок обязательно `node --check src/sw.js`. */
+const CACHE = 'kyapp-shell-v5';
 const SHELL = ['./', './index.html', './demo_audio.js', './app_core.js', './app_demo.js', './app_nav.js', './app_extras.js', './app_session.js', './app_boot.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -21,4 +23,4 @@ self.addEventListener('fetch', e => {
       return r;
     }).catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
-}
+});
