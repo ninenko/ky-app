@@ -132,10 +132,9 @@ function home(){
   if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due}</button>`;
   const known=Object.keys(S.srs).filter(k=>+k<PID0&&(S.srs[k].seen||0)>0).length;
   if(known>0) html+=`<button class="btn ghost" id="mywords" style="margin:8px 0">📖 Мои слова · ${known}</button>`;
-  { const fs=(typeof findsStat==='function')?findsStat():null;
-    if(fs&&fs.n>0) html+=`<button class="btn ghost" id="finds" style="margin:8px 0">🌍 Встретил в жизни · ${fs.k}/${fs.n}</button>`; }
   html+=questHTML();
 
+  if(UI.lvl===1&&typeof findsHomeHTML==='function')html+=findsHomeHTML();   // темы «Встретил в жизни» — над темами курса
   if(UI.lvl===1)
   cats.forEach((g,giCat)=>{
     const cd2=g.units.reduce((s,u)=>s+dnU(u),0), ct=g.units.reduce((s,u)=>s+u.lessons.length,0);
@@ -206,7 +205,7 @@ function home(){
     if(lv===5){render(dialogScreen);return;}
     UI.lvl=lv; UI.cat=null; UI.unit=-1; home();});
   document.querySelectorAll('.acc.part').forEach(b=>b.onclick=()=>{
-    const c2=+b.dataset.c;
+    const c2=/^f/.test(b.dataset.c)?b.dataset.c:+b.dataset.c;   // 'f<n>' — темы «Встретил в жизни'
     if(UI.cat===c2)UI.cat=-1; else {UI.cat=c2; UI.unit=-1;}
     keep();});
   document.querySelectorAll('.acc.unit').forEach(b=>b.onclick=()=>{
@@ -222,7 +221,7 @@ function home(){
     const u=pUnits().find(x=>x.id==uid);
     const l=u.lessons.find(x=>x.id===lid);
     render(pLessonScreen,u,l);};
-  document.querySelectorAll('.node').forEach(b=>b.onclick=()=>
+  document.querySelectorAll('.node:not(.fnode)').forEach(b=>b.onclick=()=>
     b.dataset.pl?openP(b.dataset.pu,b.dataset.pl):open(b.dataset.u,b.dataset.l));
   if(UI.lvl===1&&nxt)$('#cont').onclick=()=>open(nxt.u.id,nxt.l.id);
   if(UI.lvl>1&&nxtP)$('#contp').onclick=()=>openP(nxtP.u.id,nxtP.l.id);
@@ -235,7 +234,7 @@ function home(){
   $('#gram').onclick=e=>{e.preventDefault();render(tipsScreen);};
   $('#remind').onclick=e=>{e.preventDefault();showRemind();};
   const mw=$('#mywords'); if(mw)mw.onclick=()=>render(wordsScreen);
-  const fdb=$('#finds'); if(fdb)fdb.onclick=()=>render(findsScreen);
+  if(typeof findsHomeBind==='function')findsHomeBind();
   document.querySelectorAll('.qclaim').forEach(b=>b.onclick=async()=>{
     const q=QUESTS.find(x=>x.k===b.dataset.q), w=wkState();
     if(!q||w.claimed[q.k])return;

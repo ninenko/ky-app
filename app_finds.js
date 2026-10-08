@@ -1,6 +1,7 @@
 /* Кыргызча — app_finds.js: «Встретил в жизни» — слова и словосочетания, встреченные вне курса.
    Данные: wordbank/finds = {meta, items:[{r,g,l,d,n}]} (r = ранг записи банка, g = группа, l = урок, d = дата, n = заметка).
    Сами слова и словосочетания — обычные записи банка (S.byRank), словосочетание = слово с пробелом.
+   Показ: как обычные темы на вкладке «Слова» (findsHomeHTML/findsHomeBind вызываются из home() в app_nav).
    «Выучено» = общий SRS (S.srs[r].seen>0): если слово есть и в курсе, оно учится один раз, а здесь
    отмечается само. Classic-скрипт, общий scope: все имена начинаются с finds/find. 2026-10-08. */
 'use strict';
@@ -34,45 +35,46 @@ async function findsLesson(les){
     await finishSession(results,fresh?10:5,sess);
   });
 }
-function findsScreen(){
-  const U=findsScreen.ui||(findsScreen.ui={g:null});
-  const gs=findsGroups(), st=findsStat();
-  if(U.g===null){U.g=gs.findIndex(g=>g.ls.some(l=>l.items.some(x=>!findsSeen(x.r)))); if(U.g<0)U.g=0;}
-  let html=`<div class="wtop"><button class="wback" id="fback">←</button>
-    <div><h1 style="margin:0">Встретил в жизни</h1>
-    <div class="small muted">Слова и словосочетания из жизни. Что есть в курсе — отмечается само. Выучено ${st.k} из ${st.n}.</div></div></div>`;
-  if(!gs.length)html+=`<p class="muted center" style="margin-top:24px">Пока пусто</p>`;
+/* Темы «Встретил в жизни» — в дереве вкладки «Слова», оформление как у тем курса:
+   заголовок (acc part) → дорожка уроков (path/node) → список слов темы. UI.cat = 'f<номер>'. */
+function findsDone(l){return l.items.every(x=>findsSeen(x.r));}
+function findsHomeHTML(){
+  const gs=findsGroups(); let h='';
   gs.forEach((g,gi)=>{
-    const all=g.ls.flatMap(l=>l.items), k=all.filter(x=>findsSeen(x.r)).length, open=U.g===gi;
-    html+=`<button class="acc part ${open?'open':''} ${k===all.length?'fin':k>0?'go':''}" data-g="${gi}">
+    const all=g.ls.flatMap(l=>l.items), ld=g.ls.filter(findsDone).length, lt=g.ls.length;
+    const open=UI.cat==='f'+gi;
+    h+=`<button class="acc part ${open?'open':''} ${ld===lt?'fin':ld>0?'go':''}" data-c="f${gi}">
       <div class="grow"><div class="ttl">🌍 ${esc(g.t)}</div>
-      <div class="sub">${all.length} · выучено ${k}/${all.length}</div>
-      <div class="miniprog"><div style="width:${all.length?100*k/all.length:0}%"></div></div></div>
-      ${k===all.length?('<span class="medal">'+marmotCup(46)+'</span>'):''}<span class="chev">▾</span></button>`;
+      <div class="sub">${all.length} слов · ${ld}/${lt} уроков · встретил в жизни</div>
+      <div class="miniprog"><div style="width:${lt?100*ld/lt:0}%"></div></div></div>
+      ${ld===lt?('<span class="medal">'+marmotCup(46)+'</span>'):''}<span class="chev">▾</span></button>`;
     if(!open)return;
+    const cur=g.ls.findIndex(l=>!findsDone(l)), [c,cd]=UNIT_COLORS[gi%UNIT_COLORS.length];
+    h+=`<div class="path" style="--uc:${c};--ucd:${cd}">`;
     g.ls.forEach((l,li)=>{
-      const lk=l.items.filter(x=>findsSeen(x.r)).length, done=lk===l.items.length;
-      html+=`<div class="fdlesson"><div class="fdhead"><div class="grow"><b>${esc(l.t)}</b>
-        <div class="small muted">${esc(l.d)} · ${lk}/${l.items.length}</div></div>
-        <button class="btn ${done?'ghost':''}" data-go="${gi}:${li}" style="width:auto;padding:8px 16px">${done?'🔁 Повторить':'Учить'}</button></div>
-        <div class="wlist">`;
+      const zig=['','zig-l','','zig-r',''][li%4]||'', done=findsDone(l), isCur=li===cur;
+      h+=`<button class="node fnode ${done?'done':''} ${isCur?'cur':''} ${zig}" data-fl="${gi}:${li}" title="${esc(l.t)}">
+        ${isCur?'<span class="tip">НАЧАТЬ</span>':''}${done?'✓':(isCur?'★':li+1)}</button>`;
+    });
+    h+=`</div>`;
+    g.ls.forEach(l=>{
+      h+=`<div class="small muted fdcap">${esc(l.t)}</div><div class="wlist">`;
       for(const it of l.items){
         const w=S.byRank[it.r], seen=findsSeen(it.r), cy=seen?cycleInfo(S.srs[it.r]):null, crs=S.topicByRank[it.r];
-        html+=`<div class="wrow fdrow"><div class="grow"><div class="wky">${kyW(w)}</div>
+        h+=`<div class="wrow fdrow"><div class="grow"><div class="wky">${kyW(w)}</div>
           <div class="wru small">${esc(shortTr(w))}</div>
           ${it.n?`<div class="small muted">${esc(it.n)}</div>`:''}
           ${crs?`<div class="small muted">в курсе: ${esc(crs)}</div>`:''}</div>
           ${it.r<9000?`<span class="spk" data-spk="${it.r}">🔊</span>`:''}
           <span class="cyb ${cy?cy.k:'short'}">${cy?cy.ic+' '+cy.lab:'🆕 новое'}</span></div>`;
       }
-      html+=`</div></div>`;
+      h+=`</div>`;
     });
   });
-  app.innerHTML=html;
-  $('#fback').onclick=()=>render(home);
-  document.querySelectorAll('.acc.part').forEach(b=>b.onclick=()=>{
-    const g=+b.dataset.g; U.g=(U.g===g)?-1:g;
-    const y=scrollY; findsScreen(); requestAnimationFrame(()=>scrollTo(0,y));});
-  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{
-    const [g,l]=b.dataset.go.split(':').map(Number); findsLesson(gs[g].ls[l]);});
+  return h;
+}
+function findsHomeBind(){
+  document.querySelectorAll('.fnode').forEach(b=>b.onclick=()=>{
+    const [g,l]=b.dataset.fl.split(':').map(Number), gs=findsGroups();
+    if(gs[g]&&gs[g].ls[l])findsLesson(gs[g].ls[l]);});
 }
