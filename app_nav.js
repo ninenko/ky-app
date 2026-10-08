@@ -132,6 +132,8 @@ function home(){
   if(due>0) html+=`<button class="btn blue" id="review" style="margin:8px 0">Повторение · ${due}</button>`;
   const known=Object.keys(S.srs).filter(k=>+k<PID0&&(S.srs[k].seen||0)>0).length;
   if(known>0) html+=`<button class="btn ghost" id="mywords" style="margin:8px 0">📖 Мои слова · ${known}</button>`;
+  { const fs=(typeof findsStat==='function')?findsStat():null;
+    if(fs&&fs.n>0) html+=`<button class="btn ghost" id="finds" style="margin:8px 0">🌍 Встретил в жизни · ${fs.k}/${fs.n}</button>`; }
   html+=questHTML();
 
   if(UI.lvl===1)
@@ -233,6 +235,7 @@ function home(){
   $('#gram').onclick=e=>{e.preventDefault();render(tipsScreen);};
   $('#remind').onclick=e=>{e.preventDefault();showRemind();};
   const mw=$('#mywords'); if(mw)mw.onclick=()=>render(wordsScreen);
+  const fdb=$('#finds'); if(fdb)fdb.onclick=()=>render(findsScreen);
   document.querySelectorAll('.qclaim').forEach(b=>b.onclick=async()=>{
     const q=QUESTS.find(x=>x.k===b.dataset.q), w=wkState();
     if(!q||w.claimed[q.k])return;

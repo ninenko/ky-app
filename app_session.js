@@ -346,6 +346,7 @@ function runSession(tasks,onDone){
         ${w.stem?`<div class="stem">основа: <b>${esc(w.stem)}</b> — к ней клеятся окончания</div>`:''}
         <div class="tr">${esc(w.translation)}</div>
         ${w.translation2?`<div class="also">также: ${esc(w.translation2)}</div>`:''}
+        ${typeof findNote==='function'?findNote(t.r):''}
         ${findTopic(t.r)?`<div><span class="topic-pill">${esc(findTopic(t.r))}</span></div>`:''}</div>
         <button class="btn" id="ok">Понятно</button>`;
       $('#ok').onclick=()=>{done+=1;bump();queue.shift();next();};
