@@ -17,6 +17,13 @@ function findNote(r){
   const it=findsItems().find(x=>x.r===r);
   return (it&&it.n)?`<div class="also">🌍 Встретил в жизни: ${esc(it.n)}</div>`:'';
 }
+/* соседи словосочетания по уроку (для дистракторов): [{v,r}], v — кыргызский текст (field==='word') или перевод */
+function findsPeers(r,field){
+  const w0=S.byRank[r]; if(!w0||w0.type!=='collocation')return [];
+  const all=findsItems(), it=all.find(x=>x.r===r); if(!it)return [];
+  return all.filter(x=>x.g===it.g&&x.l===it.l&&x.r!==r&&S.byRank[x.r]&&S.byRank[x.r].type==='collocation')
+    .map(x=>{const w=S.byRank[x.r]; return {v:field==='word'?w.word:shortTr(w),r:x.r};});
+}
 function findsGroups(){
   const gs=[], gi={};
   for(const it of findsItems()){

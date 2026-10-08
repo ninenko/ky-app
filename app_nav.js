@@ -255,7 +255,16 @@ function similarMeaning(a,b){
   const A=trTokens(a),B=trTokens(b);
   return A.some(x=>B.some(y=>x===y||(x.length>=5&&y.length>=5&&x.slice(0,4)===y.slice(0,4))));}
 
+/* v1.4.15: для словосочетаний «Встретил в жизни» неверные варианты — другие словосочетания ТОГО ЖЕ урока
+   (findsPeers в app_finds). Фильтр похожих переводов тут намеренно обходится: «добрый день» и «добрый вечер»
+   не могут быть двумя верными, поэтому делят слово «добрый» безопасно. Не хватает соседей — добираем обычным подбором. */
 function distractors(word,n,field){
+  const pre=(typeof findsPeers==='function')?shuffle(findsPeers(word.freq_rank,field)).slice(0,n):[];
+  if(pre.length>=n)return pre;
+  const rest=distractorsBase(word,n-pre.length,field).filter(o=>!pre.some(p=>p.v===o.v));
+  return [...pre,...rest];
+}
+function distractorsBase(word,n,field){
   /* принципы (best practices MCQ-дистракторов):
      1) близки к ответу по длине/числу слов — верный вариант не выделяется визуально;
      2) ≥1 из той же темы — семантическая близость полезнее случайных слов;
