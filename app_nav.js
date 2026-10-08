@@ -441,9 +441,9 @@ function myWordsData(){
     if(!st||!(st.seen>0))continue;
     const r=+k;
     if(r<PID0){const w=S.byRank[r];
-      if(w)out.w.push({r,st,ky:w.word,ru:w.translation||'',topic:S.topicByRank[r]||w.topic||''});}
+      if(w)out.w.push({r,st,ky:w.word,kyh:kyW(w),ru:w.translation||'',topic:S.topicByRank[r]||w.topic||''});}
     else{const p=S.byPid[r];
-      if(p)out.p.push({r,st,ky:p.ky,ru:p.ru||'',topic:''});}
+      if(p)out.p.push({r,st,ky:p.ky,kyh:esc(p.ky),ru:p.ru||'',topic:''});}
   }
   const coll=(a,b)=>a.ky.localeCompare(b.ky,'ru');
   out.w.sort(coll); out.p.sort(coll);
@@ -475,7 +475,7 @@ function wordsScreen(){
     const cy=cycleInfo(it.st);
     return `<button class="wrow ${c==='hard'?'hard':''}" data-r="${it.r}"
       data-s="${esc((it.ky+' '+it.ru).toLowerCase())}">
-      <div class="grow"><div class="wky">${esc(it.ky)}</div>
+      <div class="grow"><div class="wky">${it.kyh}</div>
       <div class="wru small">${esc(U.tab==='w'?shortTr({translation:it.ru}):it.ru)}</div>
       <div class="wdet small" hidden></div></div>
       <span class="spk" data-spk="${it.r}">🔊</span>

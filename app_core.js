@@ -136,7 +136,7 @@ document.addEventListener('click',e=>{
   kyPopOwner=t;
   const w=S.byRank[+t.dataset.kyr]; if(!w)return;
   const d=document.createElement('div'); d.id='kypop';
-  d.innerHTML=`<div class="k">${esc(w.word)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
+  d.innerHTML=`<div class="k">${kyW(w)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
     <div class="m">${esc(shortTr(w))}</div>${t.dataset.kyx?'<div class="n">≈ по основе слова</div>':''}`;
   document.body.appendChild(d);
   const rc=t.getBoundingClientRect();
@@ -219,10 +219,35 @@ function srsOnResult(st,allCorrect){
   else { st.lapses+=1; st.step=Math.max(-1,st.step-2); st.due=today(); }
   return st;}
 function dueRanks(){
-  const t=today(), out=[];
-  for(const[r,st]of Object.entries(S.srs))
-    if(st.due && st.due<=t) out.push(+r);
+  const t=today(), out=[], bw=S.byRank||{}, bp=S.byPid||{};
+  for(const[r,st]of Object.entries(S.srs)){
+    if(!(st.due && st.due<=t))continue;
+    /* v1.4.12: «призраки». Слово/фраза, удалённые из банка при чистке (болуп, алып…),
+       оставались в S.srs с просроченным due: счётчик «Повторение» их считал, а урок строить
+       не мог (buildTasks отбрасывает неизвестные ранги) → они вечно висели в очереди
+       (у Ивана — ровно 4) и ещё и занимали слоты из 7+3 (сортировка «сначала проблемные»). */
+    if(+r<PID0?bw[+r]:bp[+r]) out.push(+r);
+  }
   return out;}
+/* Корень глагола для показа: stem из банка ('оку-') → <b>оку</b>-у; ал- → <b>ал</b>-уу.
+   Окончание имени действия: -уу/-үү/-оо/-өө (после согласной основы) или одна гласная после гласной
+   (оку-у, токто-о). Чередование к→г, п→б (чык-→чыг-уу, тап-→таб-уу) учитываем; если гласная основы
+   поменялась (сакта-→сакт-оо), корнем считаем общее начало слова и основы. Для составных
+   («сатып алуу») разбираем последнее слово, остальные приглушаем. */
+function verbSplit(w){
+  if(!w||w.pos!=='verb'||!w.stem)return null;
+  const parts=String(w.word).split(' '), word=parts.pop();
+  const s=w.stem.replace(/-+$/,''), V={'к':'г','п':'б'}, cands=[s];
+  if(V[s.slice(-1)])cands.push(s.slice(0,-1)+V[s.slice(-1)]);
+  let best='';
+  for(const c of cands){let i=0; while(i<c.length&&i<word.length&&c[i]===word[i])i++;
+    if(i>best.length)best=word.slice(0,i);}
+  if(best.length<2||best.length>=word.length)return null;
+  return {pre:parts.join(' '),root:best,end:word.slice(best.length)};}
+function kyW(w){
+  const sp=verbSplit(w); if(!sp)return esc(w.word);
+  return (sp.pre?`<span class="sfx">${esc(sp.pre)}</span> `:'')+
+    `<span class="vr">${esc(sp.root)}</span><span class="sfx">-${esc(sp.end)}</span>`;}
 /* повторение = только просроченные по сроку.
    слово, отвеченное сегодня правильно, уже получило будущий due (srsOnResult) и
    выпадает из очереди → уходит в длинный цикл; отвеченное неправильно имеет due=today

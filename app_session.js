@@ -40,6 +40,18 @@ async function practiceScreen(tab,ranks){
     await finishSession(results,5,sess,true);
   });
 }
+/* v1.4.12: слово, на котором только что ошибся (отвечено сегодня и снова due — см. srsOnResult),
+   не должно открывать следующее «Повторение»: сортировка «сначала проблемные» ставила его первым,
+   и выходило «провалил → сразу он же». Первым(и) идут слова без свежего провала, а свежие провалы —
+   на 2-е или 3-е место (случайно). Если все слова — свежие провалы, порядок не трогаем. */
+function softOpen(list){
+  const t=today();
+  const failed=r=>{const s=S.srs[r]||{}; return s.ls===t&&s.due&&s.due<=t;};
+  const fresh=list.filter(r=>!failed(r)), bad=list.filter(failed);
+  if(!fresh.length||!bad.length)return list;
+  const k=(fresh.length>=2&&Math.random()<0.5)?2:1;
+  return [...fresh.slice(0,k),...bad,...fresh.slice(k)];
+}
 async function reviewScreen(){
   /* приоритет: сначала проблемные (больше ошибок), при равенстве — самые просроченные */
   /* в демо SRS-сроки не наступают (всё «на завтра») — повторяем всё изученное */
@@ -50,8 +62,8 @@ async function reviewScreen(){
       ||String(A.due||'').localeCompare(String(B.due||''))
       ||Math.random()-0.5;
   });
-  const wr=due.filter(r=>r<PID0).slice(0,7);
-  const pr=due.filter(r=>r>PID0).slice(0,3);
+  const wr=softOpen(due.filter(r=>r<PID0).slice(0,7));
+  const pr=softOpen(due.filter(r=>r>PID0).slice(0,3));
   await prep([...wr,...pr]);
   const tasks=[...buildTasks(wr,false),...buildPTasks(pr,false)];
   runSession(tasks,async(results,sess)=>{
@@ -185,11 +197,11 @@ function runSession(tasks,onDone){
     if(t.type==='match'){
       const pairs=t.ranks.map(r=>S.byRank[r]);
       let sel=null, left=pairs.length, err=0;
-      const ky=shuffle(pairs.map(w=>({k:w.freq_rank,txt:w.word})));
+      const ky=shuffle(pairs.map(w=>({k:w.freq_rank,txt:w.word,h:kyW(w)})));
       const ru=shuffle(pairs.map(w=>({k:w.freq_rank,txt:shortTr(w)})));
       ex.innerHTML=`<p class="prompt">Соедини пары</p><div class="match">
         ${ru.map((o,i)=>`<button class="mbtn" data-k="${o.k}" data-s="ru">${esc(o.txt)}</button>`+
-          `<button class="mbtn" data-k="${ky[i].k}" data-s="ky">${esc(ky[i].txt)}</button>`).join('')}
+          `<button class="mbtn" data-k="${ky[i].k}" data-s="ky">${ky[i].h}</button>`).join('')}
       </div>`;
       document.querySelectorAll('.mbtn').forEach(b=>b.onclick=()=>{
         if(b.classList.contains('done'))return;
@@ -308,7 +320,7 @@ function runSession(tasks,onDone){
       playAudio(w.freq_rank);
       const opts=shuffle([{v:shortTr(w),r:w.freq_rank},...distractors(w,3,'tr')]);
       ex.innerHTML=`<p class="prompt">${S.mute?'Что это значит?':'Что ты услышал?'}</p>
-        <div class="center">${S.mute?`<div class="kyword">${esc(w.word)}</div>`:`<span class="lisbtn" data-spk="${w.freq_rank}">🔊</span>`}</div>
+        <div class="center">${S.mute?`<div class="kyword">${kyW(w)}</div>`:`<span class="lisbtn" data-spk="${w.freq_rank}">🔊</span>`}</div>
         ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
       document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
         const ok=+b.dataset.r===w.freq_rank;
@@ -320,7 +332,7 @@ function runSession(tasks,onDone){
           if(cr){const m=S.confus[t.r]=S.confus[t.r]||{};m[cr]=(m[cr]||0)+1;kvSet('confus',S.confus);}
         }
         document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
-        finishTask(ok,`<b>${esc(w.word)}</b> — ${esc(shortTr(w))}`);});
+        finishTask(ok,`<b>${kyW(w)}</b> — ${esc(shortTr(w))}`);});
       return;
     }
 
@@ -330,7 +342,7 @@ function runSession(tasks,onDone){
       playAudio(w.freq_rank);
       ex.innerHTML=`<p class="prompt">Новое слово</p>
         <div class="wordcard">
-        <div class="kyword">${esc(w.word)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
+        <div class="kyword">${kyW(w)} <span class="spk" data-spk="${w.freq_rank}">🔊</span></div>
         ${w.stem?`<div class="stem">основа: <b>${esc(w.stem)}</b> — к ней клеятся окончания</div>`:''}
         <div class="tr">${esc(w.translation)}</div>
         ${w.translation2?`<div class="also">также: ${esc(w.translation2)}</div>`:''}
@@ -347,7 +359,7 @@ function runSession(tasks,onDone){
       const field=t.type==='ky2ru'?'tr':'word';
       const opts=shuffle([{v:ans,r:w.freq_rank},...distractors(w,3,field==='word'?'word':'tr')]);
       ex.innerHTML=`<p class="prompt">${t.type==='ky2ru'?'Выбери перевод':'Выбери кыргызское слово'}</p>
-        <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${esc(q)}${t.type==='ky2ru'?` <span class="spk" data-spk="${w.freq_rank}">🔊</span>`:''}</div>
+        <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${t.type==='ky2ru'?kyW(w):esc(q)}${t.type==='ky2ru'?` <span class="spk" data-spk="${w.freq_rank}">🔊</span>`:''}</div>
         ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
       if(t.type==='ky2ru')playAudio(w.freq_rank);
       document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
@@ -364,7 +376,7 @@ function runSession(tasks,onDone){
         }
         document.querySelectorAll('.opt').forEach(x=>x.disabled=true);
         if(t.type==='ru2ky')playAudio(w.freq_rank);
-        finishTask(ok, ok?null:`${esc(w.word)} — ${esc(shortTr(w))}`);});
+        finishTask(ok, ok?null:`${kyW(w)} — ${esc(shortTr(w))}`);});
       return;
     }
 
@@ -387,7 +399,7 @@ function runSession(tasks,onDone){
         const ok=norm(inp.value)===norm(w.word);
         playAudio(w.freq_rank);
         $('#check').disabled=true; inp.disabled=true;
-        finishTask(ok, ok?null:`Правильно: <b>${esc(w.word)}</b>`);};
+        finishTask(ok, ok?null:`Правильно: <b>${kyW(w)}</b>`);};
       $('#check').onclick=check;
       inp.onkeydown=e=>{if(e.key==='Enter'&&!$('#check').disabled)check();};
       return;
