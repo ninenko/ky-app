@@ -361,7 +361,7 @@ function runSession(tasks,onDone){
       const opts=shuffle([{v:ans,r:w.freq_rank},...distractors(w,3,field==='word'?'word':'tr')]);
       ex.innerHTML=`<p class="prompt">${t.type==='ky2ru'?'Выбери перевод':'Выбери кыргызское слово'}</p>
         <div class="${t.type==='ky2ru'?'kyword':'ruword'}">${t.type==='ky2ru'?kyW(w):esc(q)}${t.type==='ky2ru'?` <span class="spk" data-spk="${w.freq_rank}">🔊</span>`:''}</div>
-        ${opts.map(o=>`<button class="opt" data-r="${o.r}">${esc(o.v)}</button>`).join('')}`;
+        ${opts.map(o=>`<button class="opt" data-r="${o.r}">${(field==='word'&&S.byRank[o.r])?kyW(S.byRank[o.r]):esc(o.v)}</button>`).join('')}`;
       if(t.type==='ky2ru')playAudio(w.freq_rank);
       document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
         const ok=+b.dataset.r===w.freq_rank;
