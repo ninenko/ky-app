@@ -390,8 +390,13 @@ function loginScreen(){
   $('#login').onclick=async()=>{
     const p=new firebase.auth.GoogleAuthProvider();
     try{await firebase.auth().signInWithPopup(p);}
-    catch(e){ try{await firebase.auth().signInWithRedirect(p);}
-      catch(e2){toast('Ошибка входа: '+e2.code);} }
+    catch(e){
+      // 2026-10-27: редирект-запасной вариант убран — на мобильном Chrome он ведёт на тупиковую
+      // страницу firebaseapp.com «The requested action is invalid». Показываем код ошибки.
+      const c=(e&&e.code)||'';
+      if(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request') return;
+      toast(c==='auth/popup-blocked'?'Браузер заблокировал окно входа — разреши всплывающие окна для этого сайта':'Ошибка входа: '+(c||e));
+    }
   };
 }
 
